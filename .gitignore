@@ -1,0 +1,17 @@
+# dependencies / build
+node_modules/
+.next/
+.venv/
+*.tsbuildinfo
+next-env.d.ts
+
+# ---- CONFIDENTIAL / generated data — never commit ----
+# Confidential price list PDF + the extracted prices + the built database all
+# contain the confidential H2-2026 price list. Kept local only (spec §48).
+source_pdfs/
+extraction/output/
+data/
+
+# OS / editor
+.DS_Store
+*.log
