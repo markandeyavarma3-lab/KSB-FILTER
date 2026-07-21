@@ -86,23 +86,34 @@ const loadTech = sqlite.transaction(() => {
     for (const row of t.parsed_rows) {
       const meta: string[] = row.meta_cells ?? [];
       const kh = kwHpStage(meta);
-      const isSeriesStage = SERIES_STAGE_FAMILIES.has(normFamily(pt.pumpFamily) ?? "");
+      const fam = normFamily(pt.pumpFamily) ?? "";
+      const isSeriesStage = SERIES_STAGE_FAMILIES.has(fam);
+      // stainless CORAchrom: not a priced series-stage family, but the cell after
+      // HP IS a real stage and the title carries the readable model name.
+      const isStainless = fam.startsWith("CORACHROM") || fam === "CORA75";
       const id = isSeriesStage ? techIdentity(t.title, meta, t.phase ?? null)
-                               : { family: normFamily(pt.pumpFamily), series: null, stageId: null,
+                               : { family: fam || null, series: pt.pumpSeries, stageId: null,
                                    motorNorm: normMotor(pt.motorFamilies[0]), hp: kh.hp, phase: t.phase ?? null,
                                    key: null, looseKey: null };
-      const stage = splitStage(isSeriesStage ? kh.stageRaw : null);
+      // display stage: series-stage families + stainless read it from the meta row
+      const stage = splitStage((isSeriesStage || isStainless) ? kh.stageRaw : null);
+      const stageIdDisp = isSeriesStage ? id.stageId : stage.identity;
+      // model name: "family series" for series-stage; the title's pump token for
+      // stainless or when meta[0] is a bare motor-frame code (e.g. "14 / 22");
+      // otherwise meta[0] which is already a real model (VO/MR/ULTRA).
+      const frameJunk = /^\d+(?:\.\d+)?\s*\/\s*\d+$/.test((meta[0] ?? "").trim());
       const pumpModel = isSeriesStage
         ? `${pt.pumpFamily} ${pt.pumpSeries ?? ""}`.trim()
-        : (meta[0] ?? pt.pumpFamily ?? null);
+        : (isStainless || frameJunk || !meta[0]) ? (pt.pumpToken ?? pt.pumpFamily ?? null)
+        : meta[0];
 
       const v = insVariant.values({
         performanceTableId: tableRow.id, pumpFamily: normFamily(pt.pumpFamily),
         pumpSeries: pt.pumpSeries, pumpModel,
         motorFamily: pt.motorFamilies[0] ?? null, motorFamilyNormalized: id.motorNorm,
         motorRatingKw: kh.kw, motorRatingHp: kh.hp,
-        stagesRaw: isSeriesStage ? kh.stageRaw : null,
-        stagesNumeric: stage.num, stagesSuffix: stage.suffix, stageIdentity: id.stageId,
+        stagesRaw: (isSeriesStage || isStainless) ? kh.stageRaw : null,
+        stagesNumeric: stage.num, stagesSuffix: stage.suffix, stageIdentity: stageIdDisp,
         nrvSizeMm: t.nrv_size_mm ?? null, startingMethod: t.starting_method_panel ?? null,
         phase: t.phase ?? null, voltage: t.voltage ?? null,
         identityKey: id.key, rawRowText: row.meta_raw, rowOrder: rowOrder++,

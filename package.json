@@ -11,7 +11,9 @@
     "db:load": "tsx db/load.ts",
     "db:mappings": "tsx db/generate_mappings.ts",
     "import:all": "npm run db:load && npm run db:mappings",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:py": "python -m pytest tests -q",
+    "test:all": "vitest run && python -m pytest tests -q"
   },
   "dependencies": {
     "better-sqlite3": "^12.11.1",

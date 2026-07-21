@@ -79,6 +79,7 @@ export function parseTitle(title: string | null | undefined) {
   const out = {
     pumpFamily: null as string | null,
     pumpSeries: null as string | null,
+    pumpToken: null as string | null,   // human-readable model, e.g. "CORAchrom 150-17A"
     motorFamilies: [] as string[],
     flowType: null as string | null,
     borewellMm: null as number | null,
@@ -97,6 +98,7 @@ export function parseTitle(title: string | null | undefined) {
   const pumpPart = t.split(/\s*:\s*|\s+\|\s+/)[0];
   const plusSplit = pumpPart.split(/\s*\+\s*/);
   const pumpToken = plusSplit[0].trim();
+  out.pumpToken = pumpToken || null;
   // motors after '+'
   if (plusSplit[1]) {
     for (const mm of plusSplit[1].split("/")) {

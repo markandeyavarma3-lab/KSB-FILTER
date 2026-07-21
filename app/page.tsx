@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { inr, num, hp } from "@/lib/format";
 import { ResultsTable, Col } from "@/components/ResultsTable";
 import { SourceViewer, SourceRef } from "@/components/SourceViewer";
+import { resultsToCsv, download, stamp } from "@/lib/export";
 
 const M_PER_FT = 0.3048;
 type Tab = "valid" | "model" | "near" | "rejected" | "unpriced";
@@ -66,6 +67,14 @@ export default function Home() {
   const cols = useMemo(() => buildColumns(tab, openSource), [tab]);
   const searchText = (r: any) => `${r.pumpModel} ${r.category} ${r.motorFamily} ${r.stageIdentity} ${r.matchStatus} ${(r.priceOptions || []).map((o: any) => o.inCode).join(" ")}`;
 
+  function exportCsv() {
+    const src = tab === "model" ? data.validResults : rows;
+    download(`ksb-selection-${tab}-${stamp()}.csv`, resultsToCsv(src), "text/csv");
+  }
+  function exportJson() {
+    download(`ksb-selection-${stamp()}.json`, JSON.stringify(data, null, 2), "application/json");
+  }
+
   return (
     <div style={{ maxWidth: 1440, margin: "0 auto", padding: "16px 20px" }}>
       <SourceViewer src={source} onClose={() => setSource(null)} />
@@ -74,14 +83,14 @@ export default function Home() {
           <h1 style={{ fontSize: 18, fontWeight: 700 }}>KSB Agricultural Pump Selector</h1>
           <div style={{ color: "var(--muted)", fontSize: 12 }}>Catalogue-backed pump selection by water flow and motor depth</div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8 }} className="no-print">
           <a className="btn" href="/mapping">Price mapping</a>
           <a className="btn" href="/quality">Data quality</a>
           <button className="btn" onClick={toggleTheme}>{dark ? "☀︎" : "☾"}</button>
         </div>
       </header>
 
-      <div className="card" style={{ padding: 14, marginBottom: 14 }}>
+      <div className="card no-print" style={{ padding: 14, marginBottom: 14 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
           <Field label="Min flow (LPH)"><input className="input tnum" value={form.flowMinLph} onChange={(e) => set("flowMinLph", e.target.value)} inputMode="decimal" /></Field>
           <Field label="Max flow (LPH)"><input className="input tnum" value={form.flowMaxLph} onChange={(e) => set("flowMaxLph", e.target.value)} inputMode="decimal" /></Field>
@@ -118,7 +127,13 @@ export default function Home() {
 
           <div className="badge badge-warn" style={{ display: "block", marginBottom: 10, lineHeight: 1.5, whiteSpace: "normal" }}>⚠︎ {SITE_WARNING}</div>
 
-          <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--line)", marginBottom: 10 }}>
+          <div className="no-print" style={{ display: "flex", gap: 8, marginBottom: 10, justifyContent: "flex-end" }}>
+            <button className="btn" onClick={exportCsv}>Export CSV</button>
+            <button className="btn" onClick={exportJson}>Export JSON</button>
+            <button className="btn" onClick={() => window.print()}>Print / PDF</button>
+          </div>
+
+          <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--line)", marginBottom: 10 }} className="no-print">
             <TabBtn t="valid" tab={tab} setTab={setTab} n={data.validResults.length}>Valid combinations</TabBtn>
             <TabBtn t="model" tab={tab} setTab={setTab} n={data.modelSummaries.length}>Model summary</TabBtn>
             <TabBtn t="near" tab={tab} setTab={setTab} n={data.nearMatches.length}>Near matches</TabBtn>

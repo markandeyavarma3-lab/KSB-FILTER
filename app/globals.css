@@ -65,3 +65,13 @@ th.sortable:hover { color: var(--ink); }
 .iframe-wrap > div { background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
 .iframe-wrap iframe { flex: 1; border: 0; width: 100%; }
 @media (max-width: 800px) { .iframe-wrap { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } }
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; color: #000; font-size: 11px; }
+  .card { border: 1px solid #bbb; box-shadow: none; }
+  th { position: static; }
+  tbody tr { break-inside: avoid; }
+  .badge-warn { border: 1px solid #caa; }
+  a[href]::after { content: ""; } /* don't print URLs */
+}
