@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { db, sqlite, schema, DB_PATH } from "./client";
 import {
-  techIdentity, priceIdentity, parseTitle, kwHpStage, splitStage, monosubKey, MONOSUB_PRICE_PHASE,
+  techIdentity, priceIdentity, parseTitle, kwHpStage, splitStage, monosubKey, MONOSUB_PRICE_PHASE, ultraKey,
   SERIES_STAGE_FAMILIES, normFamily, normMotor, phaseFromMotor,
 } from "./identity";
 
@@ -113,6 +113,10 @@ const loadTech = sqlite.transaction(() => {
       // Monosub R is model-coded: its identity comes from the casing designation
       // in the row itself ("MR 3 A / 3 C- 60-50-21"), not from series+stage.
       if (fam === "MR") id.key = monosubKey(pumpModel, t.phase ?? null);
+      // ULTRA+ monoblocs are model-coded as "<model> <size>" in the row text.
+      if (fam === "ULTRA" || fam === "ULTRA+") {
+        id.key = ultraKey(row.meta_raw ?? meta[0], kh.hp, t.phase ?? null);
+      }
 
       const v = insVariant.values({
         performanceTableId: tableRow.id, pumpFamily: normFamily(pt.pumpFamily),
@@ -153,10 +157,16 @@ const loadPrice = sqlite.transaction(() => {
       motorFamily: r.motor_family, hp: r.hp, phase,
     });
     // Monosub R price rows are model-coded too; match the loader's technical key.
-    const monosub = normFamily(r.pump_family) === "MR"
+    const fam = normFamily(r.pump_family);
+    const monosub = fam === "MR"
       ? monosubKey(r.material_description_raw, MONOSUB_PRICE_PHASE)
       : null;
-    const keyed = r.segment === "agricultural" ? (monosub ?? id.key) : null;
+    // ULTRA+ is three-phase throughout the agricultural booklet (415 V); the
+    // single-phase "ULTRA + S" range carries no model/size designation.
+    const ultra = (fam === "ULTRA" || fam === "ULTRA+")
+      ? ultraKey(r.material_description_raw, r.hp, 3)
+      : null;
+    const keyed = r.segment === "agricultural" ? (monosub ?? ultra ?? id.key) : null;
     db.insert(schema.priceRecords).values({
       priceListVersionId: version.id, pageIndex: r.page_index, layout: r.layout,
       segment: r.segment, categoryRaw: r.category_raw, inCode: r.in_code,

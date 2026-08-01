@@ -44,6 +44,35 @@ export function monosubKey(
 // all, so it never reaches this path.
 export const MONOSUB_PRICE_PHASE = 3;
 
+// ULTRA+ monobloc pumpsets are model-coded too. Their designation is
+// "<model> <size>" - e.g. "ULTRA+ 526 3025" is model 526 on an 80x65 mm
+// (3.0"x2.5") casing - optionally prefixed "(GS)" for the slow-speed range and
+// suffixed "I" for the ISI-marked build. The booklet and the price list write
+// the same designation; the price list simply adds its own "GP" marker, which
+// carries no engineering meaning and is ignored.
+//
+// The ISI / FF markers ARE part of the identity: the booklet lists ISI and
+// non-ISI builds as separate rows with different curves, so dropping the marker
+// would let an ISI price attach to a non-ISI pump.
+const ULTRA_DESIGN = /^ULTRA\s*\+?\s*(\(\s*GS\s*\)\s*)?(\d{3,4})\s*[- ]\s*(\d{4,6})\b/i;
+
+export function ultraKey(
+  designation: string | null | undefined,
+  hp: number | null,
+  phase: number | null,
+): string | null {
+  if (!designation) return null;
+  const s = designation.toUpperCase().replace(/\s+/g, " ").trim();
+  const m = s.match(ULTRA_DESIGN);
+  if (!m || hp == null) return null;
+  const gs = m[1] ? "GS" : "";
+  // build markers, as standalone tokens so "GP I" -> ISI but "GP" alone does not
+  const tokens = s.split(/[\s-]+/);
+  const isi = tokens.includes("I") ? "I" : "";
+  const ff = tokens.includes("FF") ? "FF" : "";
+  return `ULTRA+|${gs}${m[2]}|${m[3]}|${isi}${ff}|${hp}|${phase ?? "*"}`;
+}
+
 export function normMotor(s: string | null | undefined): string | null {
   if (!s) return null;
   return s.toUpperCase().replace(/[^A-Z0-9]/g, "") || null;

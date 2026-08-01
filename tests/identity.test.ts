@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   splitStage, normSeries, normFamily, looseFamily, kwHpStage, parseTitle,
-  techIdentity, priceIdentity, phaseFromMotor, monosubKey,
+  techIdentity, priceIdentity, phaseFromMotor, monosubKey, ultraKey,
 } from "@/db/identity";
 
 describe("splitStage — suffixes are preserved (spec §23)", () => {
@@ -122,5 +122,31 @@ describe("Monosub R — model-coded identity (openwell, spec §9/§22)", () => {
   it("stock rows without a casing designation stay unkeyed", () => {
     expect(monosubKey("MR(S)10CX 10M CABLE", 3)).toBeNull();
     expect(monosubKey("MR(T) SS 15X 3 MTR", 3)).toBeNull();
+  });
+});
+
+describe("ULTRA+ monobloc — model-coded identity", () => {
+  it("booklet row and price row agree on one key", () => {
+    // booklet "ULTRA+ 526 3025 ..."  vs  price "ULTRA+ 526 3025 GP"
+    expect(ultraKey("ULTRA+ 526 3025 3.70 5.0 80 65 8.3", 5, 3))
+      .toBe(ultraKey("ULTRA+ 526 3025 GP", 5, 3));
+  });
+  it("the price list's GP marker carries no engineering meaning", () => {
+    expect(ultraKey("ULTRA+ 526 3025 GP", 5, 3)).toBe("ULTRA+|526|3025||5|3");
+  });
+  it("keeps the (GS) slow-speed range distinct from the standard range", () => {
+    expect(ultraKey("ULTRA+ (GS) 311 100100", 3, 3)).not.toBe(ultraKey("ULTRA+ 311 100100", 3, 3));
+  });
+  it("an ISI build never takes a non-ISI price", () => {
+    expect(ultraKey("ULTRA+ 524 3025 I", 5, 3)).not.toBe(ultraKey("ULTRA+ 524 3025", 5, 3));
+  });
+  it("near-miss model numbers do NOT collide (211 vs 212)", () => {
+    expect(ultraKey("ULTRA+ (GS) 211 8080", 2, 3)).not.toBe(ultraKey("ULTRA+ (GS) 212 8080", 2, 3));
+  });
+  it("different casing sizes never collide", () => {
+    expect(ultraKey("ULTRA+ 1034 4040", 10, 3)).not.toBe(ultraKey("ULTRA+ 1034 4030", 10, 3));
+  });
+  it("rows without a model/size designation stay unkeyed", () => {
+    expect(ultraKey("ULTRA", 5, 3)).toBeNull();
   });
 });

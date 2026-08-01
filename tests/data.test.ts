@@ -17,8 +17,19 @@ describe("extraction/load regression baseline", () => {
     expect(one("SELECT COUNT(*) n FROM operating_points")).toBeGreaterThanOrEqual(7500);
   });
   it("agricultural price records and exact mappings hold", () => {
-    expect(one("SELECT COUNT(*) n FROM price_records WHERE segment='agricultural'")).toBeGreaterThanOrEqual(300);
-    expect(one("SELECT COUNT(*) n FROM technical_price_mappings WHERE mapping_status='EXACT_AUTO_MATCH'")).toBeGreaterThanOrEqual(120);
+    // The agricultural count was once >=300 because the domestic RLX / TRDX /
+    // TRLX / Oil-Filled CORA ranges were being labelled agricultural: they share
+    // the CORA family name but are priced against the DOMESTIC booklet, and none
+    // of their pumps appear in the agricultural chart. Excluding them dropped the
+    // figure to ~258, which is the correct one - so the floor moved down while
+    // the mapping floor moved UP, because fewer bogus rows now dilute it.
+    expect(one("SELECT COUNT(*) n FROM price_records WHERE segment='agricultural'")).toBeGreaterThanOrEqual(250);
+    expect(one("SELECT COUNT(*) n FROM technical_price_mappings WHERE mapping_status='EXACT_AUTO_MATCH'")).toBeGreaterThanOrEqual(160);
+  });
+  it("the domestic-only CORA motor ranges are never counted as agricultural", () => {
+    expect(one(
+      "SELECT COUNT(*) n FROM price_records WHERE segment='agricultural' AND category_raw IN ('RLX','TRDX','TRLX','Oil Filled')"
+    )).toBe(0);
   });
 });
 
