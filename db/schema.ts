@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text, real, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, integer, text, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // ---- source documents & pages (traceability, spec section 30.1/30.2) -------
 export const sourceDocuments = sqliteTable("source_documents", {
@@ -162,6 +162,24 @@ export const technicalPriceMappings = sqliteTable("technical_price_mappings", {
 }, (t) => ({
   mpvIdx: index("tpm_mpv_idx").on(t.motorPumpVariantId),
   statusIdx: index("tpm_status_idx").on(t.mappingStatus),
+}));
+
+// Durable record of manual review decisions (spec section 27).
+//
+// technical_price_mappings is rebuilt from scratch on every import, and row ids
+// are reassigned, so a decision cannot be stored against them. Decisions are
+// keyed here by the BUSINESS identity of the pair - the technical identity key
+// plus the price IN code - both of which are stable across re-extraction. This
+// table is deliberately never cleared by the loader.
+export const mappingDecisions = sqliteTable("mapping_decisions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  identityKey: text("identity_key").notNull(),   // technical variant identity
+  inCode: text("in_code").notNull(),             // price record IN code
+  decision: text("decision").notNull(),          // MANUALLY_APPROVED | MANUALLY_REJECTED
+  note: text("note"),
+  decidedAt: text("decided_at"),
+}, (t) => ({
+  pairIdx: uniqueIndex("md_pair_idx").on(t.identityKey, t.inCode),
 }));
 
 // ---- extraction issues / data quality (spec section 30.11) -----------------

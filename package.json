@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "dev:lan": "next dev -H 0.0.0.0",
+    "dev": "next dev -H 127.0.0.1",
+    "dev:lan": "KSB_ALLOW_LAN=1 next dev -H 0.0.0.0",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 127.0.0.1",
     "db:load": "tsx db/load.ts",
     "db:mappings": "tsx db/generate_mappings.ts",
     "import:all": "npm run db:load && npm run db:mappings",

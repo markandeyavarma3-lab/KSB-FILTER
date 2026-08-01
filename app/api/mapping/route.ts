@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/db/client";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -35,17 +35,39 @@ export async function POST(req: NextRequest) {
   const statusMap: Record<string, string> = {
     approve: "MANUALLY_APPROVED", reject: "MANUALLY_REJECTED",
   };
-  const m = schema.technicalPriceMappings;
+  const m = schema.technicalPriceMappings, d = schema.mappingDecisions;
+  const now = new Date().toISOString();
+
+  // Resolve the durable business key for this mapping row. Decisions are stored
+  // against (identity key, IN code) so they survive the loader rebuilding every
+  // table with fresh row ids.
+  const pair = db.select({ identityKey: m.identityKey, inCode: schema.priceRecords.inCode })
+    .from(m).innerJoin(schema.priceRecords, eq(m.priceRecordId, schema.priceRecords.id))
+    .where(eq(m.id, Number(id))).get();
+  if (!pair) return NextResponse.json({ error: "unknown mapping" }, { status: 404 });
+
   if (decision === "defer") {
-    db.update(m).set({ manuallyReviewed: false, reviewNote: note ?? null, updatedAt: new Date().toISOString() })
+    db.update(m).set({ manuallyReviewed: false, reviewNote: note ?? null, updatedAt: now })
       .where(eq(m.id, Number(id))).run();
+    if (pair.identityKey && pair.inCode) {
+      db.delete(d).where(and(eq(d.identityKey, pair.identityKey), eq(d.inCode, pair.inCode))).run();
+    }
   } else {
     const status = statusMap[decision];
     if (!status) return NextResponse.json({ error: "bad decision" }, { status: 400 });
     db.update(m).set({
       mappingStatus: status, mappingMethod: "manual", manuallyReviewed: true,
-      reviewNote: note ?? null, updatedAt: new Date().toISOString(),
+      reviewNote: note ?? null, updatedAt: now,
     }).where(eq(m.id, Number(id))).run();
+    if (pair.identityKey && pair.inCode) {
+      db.insert(d).values({
+        identityKey: pair.identityKey, inCode: pair.inCode,
+        decision: status, note: note ?? null, decidedAt: now,
+      }).onConflictDoUpdate({
+        target: [d.identityKey, d.inCode],
+        set: { decision: status, note: note ?? null, decidedAt: now },
+      }).run();
+    }
   }
   return NextResponse.json({ ok: true });
 }

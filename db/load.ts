@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { db, sqlite, schema, DB_PATH } from "./client";
 import {
-  techIdentity, priceIdentity, parseTitle, kwHpStage, splitStage,
+  techIdentity, priceIdentity, parseTitle, kwHpStage, splitStage, monosubKey, MONOSUB_PRICE_PHASE,
   SERIES_STAGE_FAMILIES, normFamily, normMotor, phaseFromMotor,
 } from "./identity";
 
@@ -14,6 +14,9 @@ const TECH = JSON.parse(readFileSync("./extraction/output/technical_catalogue.js
 const PRICE = JSON.parse(readFileSync("./extraction/output/price_list.json", "utf8"));
 
 // ---- reset ----
+// NOTE: schema.mappingDecisions is deliberately absent from this list. It holds
+// the operator's manual approve/reject decisions, which must outlive a re-import
+// (spec section 27). Adding it here would silently discard that review work.
 for (const t of [
   schema.technicalPriceMappings, schema.operatingPoints, schema.motorPumpVariants,
   schema.performanceTables, schema.priceRecords, schema.priceListVersions,
@@ -107,6 +110,10 @@ const loadTech = sqlite.transaction(() => {
         : (isStainless || frameJunk || !meta[0]) ? (pt.pumpToken ?? pt.pumpFamily ?? null)
         : meta[0];
 
+      // Monosub R is model-coded: its identity comes from the casing designation
+      // in the row itself ("MR 3 A / 3 C- 60-50-21"), not from series+stage.
+      if (fam === "MR") id.key = monosubKey(pumpModel, t.phase ?? null);
+
       const v = insVariant.values({
         performanceTableId: tableRow.id, pumpFamily: normFamily(pt.pumpFamily),
         pumpSeries: pt.pumpSeries, pumpModel,
@@ -145,7 +152,11 @@ const loadPrice = sqlite.transaction(() => {
       pumpFamily: r.pump_family, pumpSeries: r.pump_series, stageIdentity: r.stage_identity,
       motorFamily: r.motor_family, hp: r.hp, phase,
     });
-    const keyed = r.segment === "agricultural" ? id.key : null;
+    // Monosub R price rows are model-coded too; match the loader's technical key.
+    const monosub = normFamily(r.pump_family) === "MR"
+      ? monosubKey(r.material_description_raw, MONOSUB_PRICE_PHASE)
+      : null;
+    const keyed = r.segment === "agricultural" ? (monosub ?? id.key) : null;
     db.insert(schema.priceRecords).values({
       priceListVersionId: version.id, pageIndex: r.page_index, layout: r.layout,
       segment: r.segment, categoryRaw: r.category_raw, inCode: r.in_code,

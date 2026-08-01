@@ -8,10 +8,15 @@ export interface SourceRef {
   techFacts: { label: string; value: string }[];
   pricePage: number | null;     // 1-based
   priceFacts: { label: string; value: string }[];
+  // Which document to show. Opening a single page number focuses that document;
+  // the combined view (both panes) stays the default.
+  focus?: "technical" | "price" | null;
 }
 
 export function SourceViewer({ src, onClose }: { src: SourceRef | null; onClose: () => void }) {
   if (!src) return null;
+  const showTech = src.focus !== "price";
+  const showPrice = src.focus !== "technical";
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -19,9 +24,9 @@ export function SourceViewer({ src, onClose }: { src: SourceRef | null; onClose:
           <div style={{ fontWeight: 700 }}>{src.title}</div>
           <button className="btn" onClick={onClose}>Close ✕</button>
         </div>
-        <div className="iframe-wrap">
-          <Pane heading="Technical chart" doc="technical" page={src.techPage} facts={src.techFacts} />
-          <Pane heading="Price list" doc="price" page={src.pricePage} facts={src.priceFacts} />
+        <div className="iframe-wrap" style={src.focus ? { gridTemplateColumns: "1fr" } : undefined}>
+          {showTech && <Pane heading="Selection chart" doc="technical" page={src.techPage} facts={src.techFacts} />}
+          {showPrice && <Pane heading="Price list" doc="price" page={src.pricePage} facts={src.priceFacts} />}
         </div>
       </div>
     </div>

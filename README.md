@@ -57,11 +57,26 @@ npm run dev:lan              # http://0.0.0.0:3000 (phone/tablet on same Wi-Fi)
 - Stage suffixes preserved (`4A` ≠ `4`); related series (`UQD`↔`UQDs`) are
   **suggested**, never auto-linked; manual review decisions persist across re-import.
 - Multiple purchasable price options per technical combination are all shown.
+- Monosub R is **model-coded**, not series+stage: its identity is HP + casing
+  designation (`MR 3 C- 60-50-21`). The booklet writes one row for two builds
+  (`MR 3 A / 3 C- …`), so the A/C letter is left out of the key and each build
+  surfaces as its own price option. Phase stays in the key so a single-phase row
+  can never take a three-phase price.
+
+## Confidentiality of the running app
+
+`npm run dev` and `npm start` bind **127.0.0.1 only** — the price booklet is
+confidential, and binding all interfaces would publish it to every device on the
+same Wi-Fi with no authentication. `/api/pdf/price` additionally refuses
+non-loopback callers unless `KSB_ALLOW_LAN=1` is set. `npm run dev:lan` opts in
+explicitly; do not use it on a shared network.
 
 ## Screens
 
 - `/` — selector: search, live conversions, summary, tabs (valid / model / near /
-  rejected / unpriced), expandable price options, source-PDF links.
+  rejected / unpriced), expandable price options, source-PDF links. Every row
+  carries a **Chart pg** and **Price pg** column: the printed page number in each
+  booklet, each opening that exact page; **Both** opens them side by side.
 - `/mapping` — price-mapping review (approve / reject related-series suggestions).
 - `/quality` — extraction & mapping data-quality dashboard.
 - `/api/pdf/{technical|price}#page=N` — opens the exact source page.
@@ -83,6 +98,17 @@ that machine; transfer by USB rather than a cloud link.
 Built & verified: extraction (both PDFs), SQLite schema + loader, matching engine,
 query engine, main selector UI, mapping review, data-quality screen, source viewer,
 manual-decision persistence, CSV/JSON/PDF exports, and the automated test suite
-(43 Vitest + 6 pytest).
+(51 Vitest + 6 pytest).
 
 Not yet built: the import upload UI + price-change report.
+
+## Known limitation: three-phase Monosub R is priced but not selectable
+
+The three-phase Monosub R tables carry 17–19 operating points. `ALLOWED_OPERATING_
+POINT_POSITIONS` (spec §9, `extraction/scripts/common.py`) only defines approved
+duty positions up to 15, so those tables are `position_supported = false` and the
+engine excludes them. Their prices **are** now linked and visible on `/mapping`
+and `/quality`, but the pumps cannot appear in search results until §9 defines
+approved positions for 17/18/19-point tables. That is a duty-engineering decision,
+not a parsing one — inventing positions would recommend pumps that cannot meet the
+duty, so it is deliberately left open.

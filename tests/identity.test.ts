@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   splitStage, normSeries, normFamily, looseFamily, kwHpStage, parseTitle,
-  techIdentity, priceIdentity, phaseFromMotor,
+  techIdentity, priceIdentity, phaseFromMotor, monosubKey,
 } from "@/db/identity";
 
 describe("splitStage — suffixes are preserved (spec §23)", () => {
@@ -93,4 +93,34 @@ describe("techIdentity ↔ priceIdentity produce equal keys for a real pair", ()
 describe("phaseFromMotor convention", () => {
   it("(S) motors are single phase", () => expect(phaseFromMotor("XUMA DX(S)100", null)).toBe(1));
   it("UMAI is three phase", () => expect(phaseFromMotor("UMAI 150", null)).toBe(3));
+});
+
+describe("Monosub R — model-coded identity (openwell, spec §9/§22)", () => {
+  it("recognises the Monosub R family from its worded title", () => {
+    expect(parseTitle("Monosub R (MR) : Horizontal Openwell Submersible Pumpset").pumpFamily).toBe("MR");
+  });
+  it("recognises the vertical multistage range separately", () => {
+    expect(parseTitle("MONOSUB RV : Vertical Multistage Openwell Submersible Pumpset").pumpFamily).toBe("MRV");
+  });
+  it("single-phase Monosub R titles still resolve to MR", () => {
+    expect(parseTitle("Monosub R (S) : Openwell Submersible Pumpset").pumpFamily).toBe("MR");
+  });
+
+  it("booklet A/C dual designation and the price row agree on one key", () => {
+    // "MR 3 A / 3 C- 60-50-21" (booklet) must equal "MR 3 C- 60-50-21" (price)
+    expect(monosubKey("MR 3 A / 3 C- 60-50-21", 3)).toBe(monosubKey("MR 3 C- 60-50-21 DOL 1.5 sq.mm", 3));
+  });
+  it("builds hp + casing designation into the key", () => {
+    expect(monosubKey("MR 5 C- 90-75-18 DOL 2.5 sq.mm", 3)).toBe("MR|90-75-18|5|3");
+  });
+  it("keeps phase in the key so a 1-phase row never takes a 3-phase price", () => {
+    expect(monosubKey("MR (S) 5 C- 60-50-34", 1)).not.toBe(monosubKey("MR 5 C- 60-50-34 DOL 2.5 sq.mm", 3));
+  });
+  it("different casing sizes never collide", () => {
+    expect(monosubKey("MR 3 C- 50-40-25", 3)).not.toBe(monosubKey("MR 3 C- 50-40-29", 3));
+  });
+  it("stock rows without a casing designation stay unkeyed", () => {
+    expect(monosubKey("MR(S)10CX 10M CABLE", 3)).toBeNull();
+    expect(monosubKey("MR(T) SS 15X 3 MTR", 3)).toBeNull();
+  });
 });

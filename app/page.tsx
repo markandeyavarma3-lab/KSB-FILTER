@@ -46,7 +46,7 @@ export default function Home() {
   function sample() { setForm({ flowMinLph: "30000", flowMaxLph: "40000", depthMinFt: "100", depthMaxFt: "200", nearTolerancePct: "5", ranking: "balanced" }); }
   function reset() { setForm({ flowMinLph: "", flowMaxLph: "", depthMinFt: "", depthMaxFt: "", nearTolerancePct: "5", ranking: "balanced" }); setData(null); setError(null); }
 
-  function openSource(r: any) {
+  function openSource(r: any, focus: "technical" | "price" | null = null) {
     const opt = (r.priceOptions || []).find((o: any) => o.landingPrice != null) || (r.priceOptions || [])[0];
     setSource({
       title: `${r.pumpModel} · stage ${r.stageIdentity ?? "—"} · ${r.hp} HP`,
@@ -59,6 +59,7 @@ export default function Home() {
       priceFacts: opt
         ? [{ label: "IN", value: opt.inCode }, { label: "Landing", value: inr(opt.landingPrice) }, { label: "Match", value: opt.mappingStatus === "EXACT_AUTO_MATCH" ? "exact" : "suggested" }]
         : [{ label: "Price", value: "no exact match" }],
+      focus,
     });
   }
 
@@ -161,10 +162,24 @@ export default function Home() {
   );
 }
 
-function buildColumns(tab: Tab, openSource: (r: any) => void): Col<any>[] {
+// Printed page number of the price row backing this result. Options are ordered
+// cheapest-landing first, so the first one is the page the operator wants.
+function pricePageOf(r: any): number | null {
+  const opts = r.priceOptions || [];
+  const opt = opts.find((o: any) => o.landingPrice != null) || opts[0];
+  return opt ? opt.pageIndex + 1 : null;
+}
+
+function buildColumns(tab: Tab, openSource: (r: any, focus?: "technical" | "price" | null) => void): Col<any>[] {
   const priceCell = (r: any) => r.priceStatus === "PRICED"
     ? <><span className="badge badge-valid">priced</span>{r.priceOptionCount > 1 && <span className="tnum" style={{ color: "var(--muted)" }}> ×{r.priceOptionCount}</span>}</>
     : <span className="badge badge-mut">{r.priceStatus === "NO_EXACT_PRICE_MATCH" ? "no price" : "—"}</span>;
+
+  // Source page cell: shows the printed page number and opens that exact page.
+  const pageCell = (page: number | null, r: any, doc: "technical" | "price") => page == null
+    ? <span style={{ color: "var(--muted)" }}>—</span>
+    : <button className="btn tnum" style={{ padding: "1px 7px" }} title={`View page ${page}`}
+        onClick={(e) => { e.stopPropagation(); openSource(r, doc); }}>p{page}</button>;
   const cols: Col<any>[] = [
     { key: "rank", label: "#", num: true, sortable: true, hideable: false, get: (r) => r.rank ?? 1e9, cell: (r) => r.rank ?? "—" },
     { key: "match", label: "Match", sortable: true, get: (r) => r.matchStatus, cell: (r) => <span className={r.matchStatus === "VALID" ? "badge badge-valid" : r.matchStatus === "NEAR_MATCH" ? "badge badge-warn" : "badge badge-err"}>{r.matchStatus.replace(/_/g, " ").toLowerCase()}</span> },
@@ -181,9 +196,13 @@ function buildColumns(tab: Tab, openSource: (r: any) => void): Col<any>[] {
     { key: "score", label: "Score", num: true, sortable: true, get: (r) => r.balancedScore, cell: (r) => r.balancedScore },
     { key: "price", label: "Price", sortable: true, get: (r) => r.priceStatus, cell: priceCell },
     { key: "lowest", label: "Lowest landing", num: true, sortable: true, get: (r) => r.lowestLandingPrice, cell: (r) => r.priceStatus === "PRICED" ? inr(r.lowestLandingPrice) : "—" },
-    { key: "src", label: "Src", hideable: false, cell: (r) => <button className="btn" style={{ padding: "1px 7px" }} onClick={(e) => { e.stopPropagation(); openSource(r); }}>⧉</button> },
+    { key: "chartPg", label: "Chart pg", num: true, sortable: true, get: (r) => r.pageIndex != null ? r.pageIndex + 1 : null,
+      cell: (r) => pageCell(r.pageIndex != null ? r.pageIndex + 1 : null, r, "technical") },
+    { key: "pricePg", label: "Price pg", num: true, sortable: true, get: (r) => pricePageOf(r),
+      cell: (r) => pageCell(pricePageOf(r), r, "price") },
+    { key: "src", label: "Both", hideable: false, cell: (r) => <button className="btn" style={{ padding: "1px 7px" }} title="View both pages side by side" onClick={(e) => { e.stopPropagation(); openSource(r); }}>⧉</button> },
   ];
-  if (tab === "rejected") return cols.filter((c) => ["match", "category", "model", "motor", "hp", "phase", "stage", "flow", "head", "pos", "reason", "src"].includes(c.key));
+  if (tab === "rejected") return cols.filter((c) => ["match", "category", "model", "motor", "hp", "phase", "stage", "flow", "head", "pos", "reason", "chartPg", "src"].includes(c.key));
   return cols;
 }
 
@@ -236,7 +255,18 @@ function Detail({ r, openSource }: { r: any; openSource: (r: any) => void }) {
   );
 }
 
-function ModelTable({ rows, openSource }: { rows: any[]; openSource: (r: any) => void }) {
+function ModelTable({ rows, openSource }: { rows: any[]; openSource: (r: any, focus?: "technical" | "price" | null) => void }) {
+  // model rows aggregate many operating points; the source view opens the table
+  // page and the price page for the model itself.
+  const asRef = (m: any) => ({
+    ...m, position: "—", operatingPointCount: "—",
+    flowLph: m.flowMin * 1000, headFt: m.headMin * 3.28084,
+    pageIndex: m.pageIndex, priceOptions: m.priceOptions || [],
+  });
+  const pageCell = (page: number | null, m: any, doc: "technical" | "price") => page == null
+    ? <span style={{ color: "var(--muted)" }}>—</span>
+    : <button className="btn tnum" style={{ padding: "1px 7px" }} title={`View page ${page}`}
+        onClick={(e) => { e.stopPropagation(); openSource(asRef(m), doc); }}>p{page}</button>;
   const cols: Col<any>[] = [
     { key: "rank", label: "#", num: true, sortable: true, hideable: false, get: (m) => m.rank, cell: (m) => m.rank },
     { key: "category", label: "Category", sortable: true, get: (m) => m.category, cell: (m) => (m.category || "").replace(/_/g, " ") },
@@ -250,7 +280,11 @@ function ModelTable({ rows, openSource }: { rows: any[]; openSource: (r: any) =>
     { key: "head", label: "Head m", num: true, cell: (m) => `${m.headMin}–${m.headMax}` },
     { key: "opts", label: "Options", num: true, sortable: true, get: (m) => m.priceOptionCount, cell: (m) => m.priceOptionCount || "—" },
     { key: "lowest", label: "Lowest landing", num: true, sortable: true, get: (m) => m.lowestLandingPrice, cell: (m) => m.priceStatus === "PRICED" ? inr(m.lowestLandingPrice) : "—" },
-    { key: "src", label: "Src", hideable: false, cell: (m) => <button className="btn" style={{ padding: "1px 7px" }} onClick={(e) => { e.stopPropagation(); openSource({ ...m, position: "—", operatingPointCount: "—", flowLph: m.flowMin * 1000, headFt: m.headMin * 3.28084, pageIndex: m.pageIndex, priceOptions: [] }); }}>⧉</button> },
+    { key: "chartPg", label: "Chart pg", num: true, sortable: true, get: (m) => m.pageIndex != null ? m.pageIndex + 1 : null,
+      cell: (m) => pageCell(m.pageIndex != null ? m.pageIndex + 1 : null, m, "technical") },
+    { key: "pricePg", label: "Price pg", num: true, sortable: true, get: (m) => pricePageOf(m),
+      cell: (m) => pageCell(pricePageOf(m), m, "price") },
+    { key: "src", label: "Both", hideable: false, cell: (m) => <button className="btn" style={{ padding: "1px 7px" }} title="View both pages side by side" onClick={(e) => { e.stopPropagation(); openSource(asRef(m)); }}>⧉</button> },
   ];
   return <ResultsTable cols={cols} rows={rows} rowId={(m: any) => m.variantId}
     facets={[{ key: "hp", label: "HP", get: (m: any) => m.hp }, { key: "phase", label: "Phase", get: (m: any) => m.phase }]}

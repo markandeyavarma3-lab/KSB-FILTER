@@ -14,6 +14,36 @@ export const SERIES_STAGE_FAMILIES = new Set([
   "BPI", "BPH", "BPHA", "UPH", "UPHA",
 ]);
 
+// Monosub R openwell pumpsets (booklet title "Monosub R (MR)" / "MONOSUB RV")
+// are model-coded, not series+stage: the purchasable identity is the HP plus the
+// casing designation "<discharge>-<suction>-<impeller>", e.g. "MR 3 C- 60-50-21".
+//
+// The booklet writes one row for two build variants ("MR 3 A / 3 C- 60-50-21");
+// the price list lists them individually. The A/C letter is therefore left OUT
+// of the key so every purchasable build for a performance row surfaces as a
+// separate price option (spec section 25) with its own description.
+const MONOSUB_DIMS = /(\d+)\s*-\s*(\d+)\s*-\s*(\d+)/;
+const MONOSUB_HP = /^MR\s*(?:\(\s*[ST]\s*\))?\s*(\d+(?:\.\d+)?)/i;
+
+export function monosubKey(
+  designation: string | null | undefined,
+  phase: number | null,
+): string | null {
+  if (!designation) return null;
+  const d = designation.match(MONOSUB_DIMS);
+  const h = designation.match(MONOSUB_HP);
+  if (!d || !h) return null;
+  const dims = `${+d[1]}-${+d[2]}-${+d[3]}`;
+  return `MR|${dims}|${parseFloat(h[1])}|${phase ?? "*"}`;
+}
+
+// Price rows for Monosub R carry no phase column. Every dimensioned MR row in
+// the H2-2026 list is a three-phase set: they quote three-phase starting methods
+// (DOL / SD), and each one resolves to a three-phase booklet designation. The
+// single-phase stock ("MR(S)10CX 10M CABLE") carries no casing designation at
+// all, so it never reaches this path.
+export const MONOSUB_PRICE_PHASE = 3;
+
 export function normMotor(s: string | null | undefined): string | null {
   if (!s) return null;
   return s.toUpperCase().replace(/[^A-Z0-9]/g, "") || null;
@@ -106,6 +136,17 @@ export function parseTitle(title: string | null | undefined) {
       if (cleaned) out.motorFamilies.push(cleaned);
     }
   }
+  // Monosub R titles name the range in words ("Monosub R (MR)", "MONOSUB RV"),
+  // so the family never appears as a leading token and the generic matcher below
+  // cannot see it. Resolve those first: RV is the vertical multistage range.
+  const monosub = pumpToken.match(/^MONOSUB\s*R\s*V\b/i) ? "MRV"
+    : /^MONOSUB\s*R\b/i.test(pumpToken) ? "MR"
+    : null;
+  if (monosub) {
+    out.pumpFamily = monosub;
+    return out;
+  }
+
   // family + series from the pump token
   const fam = pumpToken.match(/^(CORAchrom|CORA75|CORA|UQD|UPFN|UPF|BPDN|BPD|BPC|UPC|BPHA|BPH|BPI|UPHA|UPH|MRV|MREG|MR|VO|ULTRA\+?)/i);
   if (fam) {

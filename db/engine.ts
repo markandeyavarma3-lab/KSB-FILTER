@@ -188,6 +188,8 @@ export function search(params: SearchParams) {
         borewellMm: r.borewellMm, minWellMm: r.minWellMm, pageIndex: r.pageIndex,
         validOpCount: 0, flowMin: Infinity, flowMax: -Infinity, headMin: Infinity, headMax: -Infinity,
         priceOptionCount: r.priceOptionCount, lowestLandingPrice: r.lowestLandingPrice,
+        // carried so the model view can show and open the exact price-list page
+        priceOptions: r.priceOptions,
         priceStatus: r.priceStatus, bestScore: r.balancedScore,
       };
       modelMap.set(r.variantId, m);

@@ -2,17 +2,20 @@
 //  - EXACT_AUTO_MATCH: identity keys equal (family+series+stage+motor+hp+phase)
 //  - SUGGESTED_RELATED_SERIES: loose keys equal but exact family differs
 //                              (e.g. UQD vs UQDs) -> requires manual review
-// Manual review decisions (manuallyReviewed=true) are preserved across re-runs.
+// Manual review decisions are preserved across re-runs AND across a full
+// re-import: they live in mapping_decisions, keyed by (technical identity key,
+// price IN code) rather than by row id, because the loader rebuilds every table
+// and reassigns ids.
 import { db, sqlite, schema } from "./client";
 import { looseFamily } from "./identity";
 import { eq, and, isNotNull } from "drizzle-orm";
 
 const now = new Date().toISOString();
 
-// preserve manual decisions
-const manual = db.select().from(schema.technicalPriceMappings)
-  .where(eq(schema.technicalPriceMappings.manuallyReviewed, true)).all();
-const manualKeep = new Map(manual.map((m) => [`${m.motorPumpVariantId}:${m.priceRecordId}`, m]));
+// Restore manual decisions by business key. Keyed on identity + IN code so the
+// decision survives re-extraction, which is the whole point of section 27.
+const decisions = db.select().from(schema.mappingDecisions).all();
+const decisionByPair = new Map(decisions.map((d) => [`${d.identityKey}::${d.inCode}`, d]));
 
 db.delete(schema.technicalPriceMappings).run();
 
@@ -59,17 +62,16 @@ const ins = sqlite.transaction(() => {
     if (candidates.length > 1 && status === "EXACT_AUTO_MATCH") nMulti++;
 
     for (const p of candidates) {
-      const mk = `${v.id}:${p.id}`;
-      const kept = manualKeep.get(mk);
+      const kept = p.inCode ? decisionByPair.get(`${key}::${p.inCode}`) : undefined;
       db.insert(schema.technicalPriceMappings).values({
         motorPumpVariantId: v.id, priceRecordId: p.id, identityKey: key,
-        mappingStatus: kept ? kept.mappingStatus : status,
-        mappingMethod: kept ? kept.mappingMethod : method,
-        confidence: kept ? kept.confidence : confidence,
+        mappingStatus: kept ? kept.decision : status,
+        mappingMethod: kept ? "manual" : method,
+        confidence: kept ? 1.0 : confidence,
         matchedFields: JSON.stringify(["family?", "series", "stage", "motor", "hp", "phase"]),
         differingFields: status === "SUGGESTED_RELATED_SERIES" ? JSON.stringify(["family_suffix"]) : "[]",
         manuallyReviewed: kept ? true : false,
-        reviewNote: kept?.reviewNote ?? null,
+        reviewNote: kept?.note ?? null,
         createdAt: now, updatedAt: now,
       }).run();
       linkedVariants.add(v.id);
