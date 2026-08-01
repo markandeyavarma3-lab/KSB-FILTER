@@ -73,6 +73,29 @@ export function ultraKey(
   return `ULTRA+|${gs}${m[2]}|${m[3]}|${isi}${ff}|${hp}|${phase ?? "*"}`;
 }
 
+// Same designation with the MODEL NUMBER dropped, keeping the range prefix.
+//
+// The 2025 booklet and the H2-2026 price list disagree on three ULTRA+ (GS)
+// model numbers - the list prices 211 / 515 / 810 where the booklet publishes
+// 212 / 513 / 811 - while casing size and HP agree exactly. Within the (GS)
+// range (casing, HP) identifies exactly one pump on each side, so there is no
+// second candidate these could resolve to. That makes them safe to SUGGEST for
+// review; they are never auto-linked, because a differing model number is a
+// real difference between the two documents and only the operator can confirm
+// whether it is a revision or a misprint.
+export function ultraLooseKey(
+  designation: string | null | undefined,
+  hp: number | null,
+  phase: number | null,
+): string | null {
+  const k = ultraKey(designation, hp, phase);
+  if (!k) return null;
+  const parts = k.split("|");
+  const range = /^GS/.test(parts[1]) ? "GS" : "";   // keep the slow-speed range apart
+  parts[1] = range;
+  return parts.join("|");
+}
+
 export function normMotor(s: string | null | undefined): string | null {
   if (!s) return null;
   return s.toUpperCase().replace(/[^A-Z0-9]/g, "") || null;

@@ -39,6 +39,20 @@ function looseKeyOf(key: string): string {
   return [looseFamily(fam), ...rest].join("|");
 }
 
+// ULTRA+ key with the model number dropped (range prefix kept). Only ULTRA+
+// keys have this shape, so anything else returns null and is unaffected.
+function ultraLooseOf(key: string): string | null {
+  const p = key.split("|");
+  if (p[0] !== "ULTRA+" || p.length !== 6) return null;
+  p[1] = /^GS/.test(p[1]) ? "GS" : "";
+  return p.join("|");
+}
+const byUltraLoose = new Map<string, typeof prices>();
+for (const p of prices) {
+  const lk = p.identityKey ? ultraLooseOf(p.identityKey) : null;
+  if (lk) (byUltraLoose.get(lk) ?? byUltraLoose.set(lk, []).get(lk)!).push(p);
+}
+
 // Some booklet tables publish ONE performance curve for two pump series and say
 // so in the title ("CORA 7C & 7D + UMAI 100"); the two differ only in NRV size.
 // parseTitle keeps the first series, so the second one would never find its
@@ -75,7 +89,13 @@ const ins = sqlite.transaction(() => {
       // related-series suggestion via loose key, excluding same-exact-family
       const loose = byLoose.get(looseKeyOf(key)) ?? [];
       candidates = loose.filter((p) => p.identityKey !== key);
-      if (candidates.length === 0) continue;
+      if (candidates.length === 0) {
+        // ULTRA+ whose model number differs between the two documents: same
+        // range, casing and HP, so suggest it for review (never auto-link).
+        const lk = ultraLooseOf(key);
+        candidates = lk ? (byUltraLoose.get(lk) ?? []).filter((p) => p.identityKey !== key) : [];
+        if (candidates.length === 0) continue;
+      }
       status = "SUGGESTED_RELATED_SERIES";
       method = "suggested";
       confidence = 0.6;

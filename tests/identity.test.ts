@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   splitStage, normSeries, normFamily, looseFamily, kwHpStage, parseTitle,
-  techIdentity, priceIdentity, phaseFromMotor, monosubKey, ultraKey,
+  techIdentity, priceIdentity, phaseFromMotor, monosubKey, ultraKey, ultraLooseKey,
 } from "@/db/identity";
 
 describe("splitStage — suffixes are preserved (spec §23)", () => {
@@ -148,5 +148,28 @@ describe("ULTRA+ monobloc — model-coded identity", () => {
   });
   it("rows without a model/size designation stay unkeyed", () => {
     expect(ultraKey("ULTRA", 5, 3)).toBeNull();
+  });
+});
+
+describe("ULTRA+ model-number drift between the two documents", () => {
+  it("(GS) 211 and (GS) 212 reconcile once the model number is dropped", () => {
+    // price list prints 211, booklet prints 212; casing 8080 and 2.0 HP agree
+    expect(ultraLooseKey("ULTRA+ (GS) 211 8080", 2, 3))
+      .toBe(ultraLooseKey("ULTRA+ (GS) 212 8080 1.50 2.0 80 80 3.9", 2, 3));
+  });
+  it("but they are NOT an exact match — must stay a suggestion", () => {
+    expect(ultraKey("ULTRA+ (GS) 211 8080", 2, 3)).not.toBe(ultraKey("ULTRA+ (GS) 212 8080", 2, 3));
+  });
+  it("the slow-speed (GS) range never reconciles with the standard range", () => {
+    expect(ultraLooseKey("ULTRA+ (GS) 513 100100", 5, 3))
+      .not.toBe(ultraLooseKey("ULTRA+ 513 100100", 5, 3));
+  });
+  it("a different casing still never reconciles", () => {
+    expect(ultraLooseKey("ULTRA+ (GS) 811 150150", 7.5, 3))
+      .not.toBe(ultraLooseKey("ULTRA+ (GS) 810 100100", 7.5, 3));
+  });
+  it("a different HP still never reconciles", () => {
+    expect(ultraLooseKey("ULTRA+ (GS) 513 100100", 5, 3))
+      .not.toBe(ultraLooseKey("ULTRA+ (GS) 515 100100", 3, 3));
   });
 });
