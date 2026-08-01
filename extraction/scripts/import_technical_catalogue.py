@@ -37,11 +37,16 @@ Y_TOL = 3.2
 GAP_MERGE = 6.0          # words within this x-gap merge into one cell
 COL_TOL = 14.0           # body cell assigned to header column within this x-dist
 
-FLOW_LABELS = ("m3/hr.", "m3/hr", "m³/hr.", "m³/hr", "Q(m3/h)", "Q(m³/h)")
+# A table is located by its flow-header row, so this list decides whether a table
+# is seen at all. Where the column is narrow the booklet wraps the unit onto two
+# lines ("m3/" above "hr."), leaving the header cell as a bare "m3/" - the whole
+# table was silently dropped. The wrapped forms are therefore accepted too.
+FLOW_LABELS = ("m3/hr.", "m3/hr", "m³/hr.", "m³/hr", "Q(m3/h)", "Q(m³/h)", "m3/", "m³/")
 LPM_LABEL = "LPM"
 HEAD_HDR = "Total Head in Metres"
 DISCHARGE_LPM = "Discharge in LPM"
 HEAD_JUNK = ("daeH", ")m(", "Head", "(m)", "(H)")
+FLOW_LABEL_WRAP_Y = 12.0  # how far below a wrapped flow label its values may sit
 
 
 def get_rows(page):
@@ -158,8 +163,22 @@ def parse_orientation_A(rows, titles, page_index):
             continue
         label_x = r["cells"][flow_label_idx][1]
         flow_cells = [c for c in r["cells"] if c[2] > label_x and parse_number(c[3]) is not None]
+        # Where the unit wraps onto two lines ("m3/" over "hr.") the flow values
+        # sit on their own row between the two halves, so the label row carries no
+        # numbers. Borrow them from the nearest following row, which is where the
+        # header actually is; without this the whole table is invisible.
+        header_row = r
+        if len(flow_cells) < 3:
+            for rj in rows[hi + 1:]:
+                if rj["yc"] - r["yc"] > FLOW_LABEL_WRAP_Y:
+                    break
+                cand = [c for c in rj["cells"] if c[2] > label_x and parse_number(c[3]) is not None]
+                if len(cand) >= 3:
+                    flow_cells, header_row = cand, rj
+                    break
         if len(flow_cells) < 3:
             continue
+        hi = rows.index(header_row)
         flow_cols = [(c[2], parse_number(c[3]), c[3]) for c in flow_cells]
         flow_region_left = flow_cols[0][0] - COL_TOL
         table_right = flow_cols[-1][0] + 22.0   # clip the right-side spec panel

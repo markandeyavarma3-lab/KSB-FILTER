@@ -39,12 +39,33 @@ function looseKeyOf(key: string): string {
   return [looseFamily(fam), ...rest].join("|");
 }
 
+// Some booklet tables publish ONE performance curve for two pump series and say
+// so in the title ("CORA 7C & 7D + UMAI 100"); the two differ only in NRV size.
+// parseTitle keeps the first series, so the second one would never find its
+// prices. Map each table to its sibling series so those rows match too - the
+// booklet is explicit that the curve covers both, so these are exact matches.
+const tableTitles = new Map(db.select({ id: schema.performanceTables.id, title: schema.performanceTables.title })
+  .from(schema.performanceTables).all().map((t) => [t.id, t.title ?? ""]));
+
+function siblingSeries(tableId: number | null, series: string | null): string | null {
+  if (tableId == null || !series) return null;
+  const m = tableTitles.get(tableId)?.match(/\b([0-9]+[A-Z]{1,3})\s*&\s*([0-9]+[A-Z]{1,3})\b/i);
+  if (!m) return null;
+  const [a, b] = [m[1].toUpperCase(), m[2].toUpperCase()];
+  if (series.toUpperCase() === a) return b;
+  if (series.toUpperCase() === b) return a;
+  return null;
+}
+
 let nExact = 0, nSuggest = 0, nMulti = 0;
 const linkedVariants = new Set<number>();
 const ins = sqlite.transaction(() => {
   for (const v of variants) {
     const key = v.identityKey!;
-    const exact = byExact.get(key) ?? [];
+    // a combined "A & B" table serves both series, so both key variants are exact
+    const sib = siblingSeries(v.performanceTableId, v.pumpSeries);
+    const sibKey = sib ? key.split("|").map((part, i) => (i === 1 ? sib : part)).join("|") : null;
+    const exact = [...(byExact.get(key) ?? []), ...(sibKey ? byExact.get(sibKey) ?? [] : [])];
     let candidates = exact;
     let status = "EXACT_AUTO_MATCH";
     let method = "exact_automatic";
