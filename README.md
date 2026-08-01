@@ -41,8 +41,13 @@ npm run import:all            # db:load + db:mappings
 
 # 3. Run
 npm run dev                  # http://localhost:3000
-npm run dev:lan              # http://0.0.0.0:3000 (phone/tablet on same Wi-Fi)
+npm run dev:lan              # http://0.0.0.0:3000 — exposes the confidential
+                             # price list to the whole network; see below
 ```
+
+**Restart the app after any re-import.** The server holds the SQLite file open,
+so a running instance keeps serving the old database (and the old prices) until
+it is restarted.
 
 ## Key business rules enforced
 

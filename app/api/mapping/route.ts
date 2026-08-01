@@ -41,14 +41,27 @@ export async function POST(req: NextRequest) {
   // Resolve the durable business key for this mapping row. Decisions are stored
   // against (identity key, IN code) so they survive the loader rebuilding every
   // table with fresh row ids.
-  const pair = db.select({ identityKey: m.identityKey, inCode: schema.priceRecords.inCode })
+  const pair = db.select({
+    identityKey: m.identityKey, inCode: schema.priceRecords.inCode,
+    priceKey: schema.priceRecords.identityKey,
+  })
     .from(m).innerJoin(schema.priceRecords, eq(m.priceRecordId, schema.priceRecords.id))
     .where(eq(m.id, Number(id))).get();
   if (!pair) return NextResponse.json({ error: "unknown mapping" }, { status: 404 });
 
   if (decision === "defer") {
-    db.update(m).set({ manuallyReviewed: false, reviewNote: note ?? null, updatedAt: now })
-      .where(eq(m.id, Number(id))).run();
+    // Deferring must undo an earlier approve/reject completely, not just clear
+    // the reviewed flag: leaving mappingStatus on MANUALLY_APPROVED would keep a
+    // withdrawn decision counting as an operator-approved price. Restore the
+    // status the generator would produce - exact when both identity keys agree,
+    // otherwise a related-series suggestion.
+    const isExact = pair.identityKey != null && pair.identityKey === pair.priceKey;
+    db.update(m).set({
+      mappingStatus: isExact ? "EXACT_AUTO_MATCH" : "SUGGESTED_RELATED_SERIES",
+      mappingMethod: isExact ? "exact_automatic" : "suggested",
+      confidence: isExact ? 1.0 : 0.6,
+      manuallyReviewed: false, reviewNote: note ?? null, updatedAt: now,
+    }).where(eq(m.id, Number(id))).run();
     if (pair.identityKey && pair.inCode) {
       db.delete(d).where(and(eq(d.identityKey, pair.identityKey), eq(d.inCode, pair.inCode))).run();
     }
@@ -56,8 +69,10 @@ export async function POST(req: NextRequest) {
     const status = statusMap[decision];
     if (!status) return NextResponse.json({ error: "bad decision" }, { status: 400 });
     db.update(m).set({
-      mappingStatus: status, mappingMethod: "manual", manuallyReviewed: true,
-      reviewNote: note ?? null, updatedAt: now,
+      // confidence 1.0 matches what generate_mappings writes when it restores a
+      // manual decision, so the row reads the same before and after a re-import.
+      mappingStatus: status, mappingMethod: "manual", confidence: 1.0,
+      manuallyReviewed: true, reviewNote: note ?? null, updatedAt: now,
     }).where(eq(m.id, Number(id))).run();
     if (pair.identityKey && pair.inCode) {
       db.insert(d).values({

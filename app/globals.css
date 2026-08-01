@@ -74,4 +74,8 @@ th.sortable:hover { color: var(--ink); }
   tbody tr { break-inside: avoid; }
   .badge-warn { border: 1px solid #caa; }
   a[href]::after { content: ""; } /* don't print URLs */
+  /* Source-page buttons carry real information on a printed quote (which
+     booklet page each figure came from), so print them as plain text rather
+     than as chrome. */
+  .btn { border: none !important; background: none !important; padding: 0 !important; color: #000 !important; }
 }
