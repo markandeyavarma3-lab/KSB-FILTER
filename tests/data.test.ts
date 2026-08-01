@@ -73,3 +73,28 @@ describe("data integrity", () => {
     expect(one("SELECT COUNT(*) n FROM motor_pump_variants WHERE pump_family='CORACHROM' AND pump_model LIKE 'CORAchrom%'")).toBeGreaterThan(0);
   });
 });
+
+describe("every purchasable option is linked, not just the exact one (spec §25)", () => {
+  it("a booklet row keeps its related-series option even when an exact one exists", () => {
+    // UQD 112/20 7.5HP is sold as UQD112/20 AND as UQDs112/20, at different
+    // prices. Collecting related candidates only when the exact set was empty
+    // silently dropped the second option.
+    const n = one(
+      `SELECT COUNT(DISTINCT m.price_record_id) n
+         FROM technical_price_mappings m
+         JOIN motor_pump_variants v ON v.id = m.motor_pump_variant_id
+        WHERE v.identity_key = 'UQD|112|20|7.5|3'`
+    );
+    expect(n).toBeGreaterThanOrEqual(2);
+  });
+  it("those extra options are SUGGESTED, never silently auto-priced", () => {
+    expect(one(
+      `SELECT COUNT(*) n FROM technical_price_mappings m
+         JOIN motor_pump_variants v ON v.id = m.motor_pump_variant_id
+         JOIN price_records p ON p.id = m.price_record_id
+        WHERE m.mapping_status = 'EXACT_AUTO_MATCH'
+          AND v.pump_family <> p.pump_family
+          AND NOT (v.pump_family = 'ULTRA' AND p.pump_family = 'ULTRA+')`
+    )).toBe(0);
+  });
+});

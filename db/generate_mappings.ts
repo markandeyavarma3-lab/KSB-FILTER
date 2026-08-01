@@ -80,29 +80,33 @@ const ins = sqlite.transaction(() => {
     const sib = siblingSeries(v.performanceTableId, v.pumpSeries);
     const sibKey = sib ? key.split("|").map((part, i) => (i === 1 ? sib : part)).join("|") : null;
     const exact = [...(byExact.get(key) ?? []), ...(sibKey ? byExact.get(sibKey) ?? [] : [])];
-    let candidates = exact;
-    let status = "EXACT_AUTO_MATCH";
-    let method = "exact_automatic";
-    let confidence = 1.0;
 
-    if (candidates.length === 0) {
-      // related-series suggestion via loose key, excluding same-exact-family
-      const loose = byLoose.get(looseKeyOf(key)) ?? [];
-      candidates = loose.filter((p) => p.identityKey !== key);
-      if (candidates.length === 0) {
-        // ULTRA+ whose model number differs between the two documents: same
-        // range, casing and HP, so suggest it for review (never auto-link).
-        const lk = ultraLooseOf(key);
-        candidates = lk ? (byUltraLoose.get(lk) ?? []).filter((p) => p.identityKey !== key) : [];
-        if (candidates.length === 0) continue;
-      }
-      status = "SUGGESTED_RELATED_SERIES";
-      method = "suggested";
-      confidence = 0.6;
-    }
-    if (candidates.length > 1 && status === "EXACT_AUTO_MATCH") nMulti++;
+    // Related-series candidates are collected ALWAYS, not only when there is no
+    // exact match. A booklet row can be bought as the exact part AND as the
+    // related-series build (UQD 112/20 exists as both UQD112/20 and UQDs112/20,
+    // at different prices); gating this on "no exact match" silently hid the
+    // second option, contradicting spec section 25 - every purchasable option
+    // for a technical combination must be shown.
+    const exactIds = new Set(exact.map((p) => p.id));
+    const ulk = ultraLooseOf(key);
+    const related = [
+      ...(byLoose.get(looseKeyOf(key)) ?? []),
+      ...(ulk ? byUltraLoose.get(ulk) ?? [] : []),
+    ].filter((p) => p.identityKey !== key && !exactIds.has(p.id));
+    const relatedUniq = [...new Map(related.map((p) => [p.id, p])).values()];
 
-    for (const p of candidates) {
+    if (exact.length === 0 && relatedUniq.length === 0) continue;
+    if (exact.length > 1) nMulti++;
+
+    const batch: { p: typeof prices[number]; exact: boolean }[] = [
+      ...exact.map((p) => ({ p, exact: true })),
+      ...relatedUniq.map((p) => ({ p, exact: false })),
+    ];
+
+    for (const { p, exact: isExact } of batch) {
+      const status = isExact ? "EXACT_AUTO_MATCH" : "SUGGESTED_RELATED_SERIES";
+      const method = isExact ? "exact_automatic" : "suggested";
+      const confidence = isExact ? 1.0 : 0.6;
       const kept = p.inCode ? decisionByPair.get(`${key}::${p.inCode}`) : undefined;
       db.insert(schema.technicalPriceMappings).values({
         motorPumpVariantId: v.id, priceRecordId: p.id, identityKey: key,
