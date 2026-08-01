@@ -44,6 +44,15 @@ AGRI_FAMILIES = {
 DOMESTIC_MARKERS = ("AQUA", "PERISTAR", "OPAL", "KGP", "AGRIBLOC", "KSTP",
                     "DSTART", "STARTER", "KMR", "V MB", "SSMB", "OF PANEL", "SEWAGE")
 
+# Motor ranges that belong to the DOMESTIC booklet, matched on the price list's
+# own Category column. These share family names with the agricultural booklet
+# (they are all "CORA"), so the family test alone marks them agricultural and
+# they then sit unmatched forever. They are domestic: none of these strings
+# occurs anywhere in the agricultural chart, they carry numeric pump series
+# (CORA 45/47/49/50) that the agricultural chart never uses, and those series do
+# appear in the domestic chart. Checked before the family test for that reason.
+DOMESTIC_CATEGORIES = ("RLX", "TRDX", "TRLX", "OIL FILLED")
+
 
 def header_anchors(row_cells):
     """Return dict label->x-center and ordered anchor list from a header row."""
@@ -112,6 +121,9 @@ def classify_segment(category, parsed, description):
     when a known domestic line marker appears (category or description); else
     ambiguous. Definitive pricing eligibility is decided later by exact identity
     match to a technical variant, so ambiguous rows simply never link."""
+    cat = (category or "").upper().strip()
+    if any(cat == c or cat.startswith(c + " ") for c in DOMESTIC_CATEGORIES):
+        return "domestic"
     fam = (parsed.get("pump_family") or "").upper()
     if fam in AGRI_FAMILIES:
         return "agricultural"
