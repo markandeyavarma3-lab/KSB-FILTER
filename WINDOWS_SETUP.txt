@@ -1,0 +1,33 @@
+KSB Pump Selector - Setup on Windows
+=====================================
+
+ONE-TIME SETUP
+--------------
+1. Install Node.js (needed to run the app):
+   https://nodejs.org
+   Click the button labeled "LTS" and run the installer with default options.
+
+2. Copy this whole folder onto the Windows laptop
+   (USB drive is simplest). Keep all the files and folders together -
+   don't pick out individual files.
+
+3. Double-click "Start KSB Pump Selector.bat"
+   The first run installs some files and may take a few minutes and
+   needs an internet connection. After that it works fully offline.
+
+   If Windows Defender/Firewall asks for permission, click "Allow access".
+
+EVERY TIME AFTER THAT
+----------------------
+Just double-click "Start KSB Pump Selector.bat" again.
+It opens automatically in your browser at http://localhost:3000
+Close the black window when you're done to stop the app.
+
+NOTES
+-----
+- All data (pump specs and prices) stays on this laptop. Nothing is
+  uploaded anywhere.
+- If the browser doesn't open by itself, open it manually and go to:
+  http://localhost:3000
+- This folder contains the confidential KSB price list. Treat the
+  whole folder the same way you'd treat that PDF.

@@ -66,11 +66,23 @@ npm run dev:lan              # http://0.0.0.0:3000 (phone/tablet on same Wi-Fi)
 - `/quality` — extraction & mapping data-quality dashboard.
 - `/api/pdf/{technical|price}#page=N` — opens the exact source page.
 
+## Running on Windows (non-technical user)
+
+`Start KSB Pump Selector.bat` is a double-click launcher for handing the app to an
+end user. It installs deps and builds on first run, then opens
+`http://localhost:3000` in the default browser. See `WINDOWS_SETUP.txt` for the
+plain-language instructions that ship alongside it.
+
+Python is **not** needed on that machine — only Node.js. Copy the built
+`data/ksb.sqlite` and `source_pdfs/` across with the folder and the extraction step
+can be skipped entirely. Note that doing so moves the confidential price list onto
+that machine; transfer by USB rather than a cloud link.
+
 ## Status
 
 Built & verified: extraction (both PDFs), SQLite schema + loader, matching engine,
 query engine, main selector UI, mapping review, data-quality screen, source viewer,
-manual-decision persistence.
+manual-decision persistence, CSV/JSON/PDF exports, and the automated test suite
+(43 Vitest + 6 pytest).
 
-Not yet built: CSV/Excel/PDF exports (JSON is the search API response), the import
-upload UI + price-change report, and the automated test suite.
+Not yet built: the import upload UI + price-change report.
