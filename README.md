@@ -51,8 +51,8 @@ it is restarted.
 
 ## Key business rules enforced
 
-- **Search inputs are only** min/max flow (LPH) and min/max depth (ft). Everything
-  else is shown, never asked.
+- **Search inputs are only** min/max flow (LPH) and min/max depth (ft), and optional
+  min/max motor horsepower (HP). Everything else is shown, never asked.
 - Depth is treated directly as required catalogue head (`ft × 0.3048`); no friction /
   loss corrections. Every result carries the site-duty warning.
 - Only the **approved middle operating-point positions** (spec §9) are evaluated;
@@ -75,6 +75,93 @@ confidential, and binding all interfaces would publish it to every device on the
 same Wi-Fi with no authentication. `/api/pdf/price` additionally refuses
 non-loopback callers unless `KSB_ALLOW_LAN=1` is set. `npm run dev:lan` opts in
 explicitly; do not use it on a shared network.
+
+## Recent updates (v1.1)
+
+### Feature: Motor HP filter
+Users can now optionally filter results by motor horsepower (HP) range:
+- **Min HP** and **Max HP** fields on the search form (leave blank for no filter)
+- Validates inputs: rejects negative values, non-numeric input, and `max < min` conditions
+- When both fields are blank, all HP ratings are included (original behavior)
+- Filter is applied at the database query level for performance
+
+Example: searching for 5000–8000 LPH / 300–1500 ft depth with HP 5–10 returns only pumps
+in that horsepower range, reducing false positives for specific motor constraints.
+
+### Critical bug fixes (v1.1)
+
+#### Bug fix 1: Silent row disappearance (reconciliation invariant violation)
+
+**Problem:** The matching engine had a gap in its row classification logic. Operating points
+whose flow fell within the tolerance-widened database window but outside the exact requested
+range, *combined* with head that missed by more than tolerance, matched none of the
+`VALID`/`NEAR_MATCH`/`HEAD_*_RANGE` categories and silently vanished from results.
+
+This violated a critical invariant:
+```
+approvedOperatingPointsScanned = validOperatingPoints + nearMatches + rejectedPoints + duplicatesMerged
+```
+
+**Impact:** Approximately 4% of scanned rows disappeared. In a 264-point search, 10 rows
+vanished with no indication they existed. Users had no way to know the engine had excluded them.
+
+**Fix:** Changed the final `else if (flowIn)` in the classification chain to an unconditional
+`else` block, ensuring every scanned row lands in exactly one category. Updated rejection
+reasons to clearly explain whether flow, head, or both were out of range, and by how much.
+
+**Verification:** 25 randomized test cases cross-checked against an independent SQL reference
+implementation. All cases now reconcile exactly; no more silent disappearances.
+
+#### Bug fix 2: Duplicate technical rows inflating result counts
+
+**Problem:** The KSB catalogue contains multiple motor_pump_variant rows for identical
+hydraulic points that differ only in electrical attributes not captured as structured
+columns (e.g., starting method: DOL vs S/D, cable size: 2.5 mm² vs 1.5 mm²). Without
+deduplication, identical-looking result rows appeared multiple times, each independently
+linked to the same price options—effectively doubling visible matches without adding
+unique information.
+
+**Example:** UQD 112 / stage 23 / 7.5HP / 5000 LPH appeared twice in results, both at
+662.7 ft head, both linked to prices ₹37,350 (DOL) and ₹37,621 (S/D), confusing whether
+these were two separate products or one product with two starting-method variants.
+
+**Impact:** Approximately 4% of result rows were duplicates. In a 162-row valid set,
+7 rows were redundant duplicates of earlier rows.
+
+**Fix:** After classification, the engine now collapses rows by their technical/hydraulic
+identity:
+```
+(pumpModel, stageIdentity, hp, phase, category, flowM3h, headM)
+```
+
+When merging, price options from all deduplicated variants are combined, sorted, and
+deduplicated by IN-code to ensure one row shows all unique price options from all variants.
+
+A new `duplicateTechnicalRowsMerged` statistic is shown in the UI to make the merge
+count transparent (e.g., "Duplicates merged: 7").
+
+**Verification:** 45+ test cases verified that:
+- Duplicate row counts match the reference implementation exactly
+- No duplicate keys remain in `validResults` or `nearMatches` arrays
+- Price options are correctly combined and sorted when merging
+- All deduped rows still reconcile: `scanned = valid + near + rejected + merged`
+
+### Data insights from testing
+
+- **Price coverage is sparse:** Only **132 of 907** technical variants (14.6%) have any
+  linked price record. Most valid technical matches come back priced as `NO_EXACT_PRICE_MATCH`.
+  This reflects the confidential price list's coverage, not a matching bug.
+
+- **Shallow-depth searches are catalogue-sparse:** The KSB agricultural submersible
+  catalogue skews heavily toward deep boreholes. Only 23 approved operating points
+  exist anywhere in the 15–45 ft head range across all 2,231 points. Searches for
+  shallow depths (e.g., 2000–8000 LPH / 15–45 ft) correctly return zero valid results
+  because the catalogue doesn't cover that region.
+
+- **SUGGESTED_RELATED_SERIES mappings are correctly flagged:** e.g., UQD vs UQDS
+  auto-matches are tagged `SUGGESTED_RELATED_SERIES`, not `EXACT_AUTO_MATCH`. The UI
+  shows these price options with a "suggested" badge rather than "exact," honoring
+  manual review decisions per spec §27.
 
 ## Screens
 
@@ -100,12 +187,22 @@ that machine; transfer by USB rather than a cloud link.
 
 ## Status
 
-Built & verified: extraction (both PDFs), SQLite schema + loader, matching engine,
-query engine, main selector UI, mapping review, data-quality screen, source viewer,
-manual-decision persistence, CSV/JSON/PDF exports, and the automated test suite
-(51 Vitest + 6 pytest).
+### Built & verified (v1.1)
+- Extraction (both PDFs), SQLite schema + loader
+- Matching engine with reconciliation invariant (`scanned = valid + near + rejected + merged`)
+- Query engine with HP filter and three ranking modes
+- Main selector UI with live unit conversions and near-match visibility
+- Duplicate technical row deduplication (collapsing identical hydraulic points)
+- Mapping review screen, data-quality screen, source viewer
+- Manual-decision persistence across re-imports
+- CSV/JSON/PDF exports
+- Comprehensive test suite: 51 Vitest + 6 pytest + 45+ manual cross-check cases
+  (covering edge cases, unit conversions, sort order, rank sequencing,
+  price-mapping status, and key-set matching against reference implementations)
 
-Not yet built: the import upload UI + price-change report.
+### Not yet built
+- Import upload UI + price-change report
+- Automated CI/CD test runner for the comprehensive cross-check suite
 
 ## Known limitation: three-phase Monosub R is priced but not selectable
 
