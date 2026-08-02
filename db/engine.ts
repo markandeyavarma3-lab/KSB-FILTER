@@ -3,7 +3,7 @@
 // approved middle operating-point positions, then head/depth is evaluated.
 // Price is attached AFTER technical ranking and never influences it.
 import { db, schema } from "./client";
-import { and, eq, isNotNull, gte, lte } from "drizzle-orm";
+import { and, eq, isNotNull, gte, lte, SQL } from "drizzle-orm";
 
 const M_PER_FT = 0.3048;
 const FT_PER_M = 3.280839895;
@@ -13,6 +13,8 @@ export interface SearchParams {
   flowMaxLph: number;
   depthMinFt: number;
   depthMaxFt: number;
+  hpMin?: number | null;
+  hpMax?: number | null;
   nearTolerancePct?: number; // default 5
   ranking?: "balanced" | "flow" | "head";
 }
@@ -48,6 +50,7 @@ export function convertRequest(p: SearchParams) {
     headMinM, headMaxM,
     headMinFt: p.depthMinFt, headMaxFt: p.depthMaxFt,
     headMidpointM: (headMinM + headMaxM) / 2,
+    hpMin: p.hpMin ?? null, hpMax: p.hpMax ?? null,
     nearTolerancePercent: tol,
     ranking: p.ranking ?? "balanced",
   };
@@ -70,6 +73,11 @@ export function search(params: SearchParams) {
   const t = schema.performanceTables;
   const flowLo = req.flowMinM3h * (1 - tol) - 1e-6;
   const flowHi = req.flowMaxM3h * (1 + tol) + 1e-6;
+
+  const hpConds: SQL[] = [];
+  if (req.hpMin != null) hpConds.push(gte(v.motorRatingHp, req.hpMin));
+  if (req.hpMax != null) hpConds.push(lte(v.motorRatingHp, req.hpMax));
+  if (hpConds.length) hpConds.unshift(isNotNull(v.motorRatingHp));
 
   const rows = db
     .select({
@@ -95,6 +103,7 @@ export function search(params: SearchParams) {
       eq(t.positionSupported, true),
       isNotNull(op.flowM3h), isNotNull(op.headM),
       gte(op.flowM3h, flowLo), lte(op.flowM3h, flowHi),
+      ...hpConds,
     ))
     .all();
 
@@ -143,28 +152,74 @@ export function search(params: SearchParams) {
       ].filter(Boolean).join("; ");
       near.push({ ...base, matchStatus: "NEAR_MATCH", reason });
       variantIds.add(r.variantId);
-    } else if (flowIn) {
-      // flow matched, head out of even tolerance -> useful rejection
+    } else {
+      // Every remaining scanned row lands here, so scanned === valid + near + rejected always.
+      // Two cases reach this branch: (a) flow matched exactly but head missed by more than
+      // tolerance, or (b) flow only matched within the widened tolerance band (not exactly)
+      // and head missed by more than tolerance too — previously these silently vanished.
+      const flowNote = fMiss > 0
+        ? `flow ${base.flowMissPct}% ${flow < req.flowMinM3h ? "below" : "above"} range`
+        : "flow matched";
       rejected.push({
         ...base,
         matchStatus: head < req.headMinM ? "HEAD_BELOW_RANGE" : "HEAD_ABOVE_RANGE",
-        reason: `Head ${base.headFt} ft outside ${req.headMinFt}-${req.headMaxFt} ft (flow matched)`,
+        reason: `Head ${base.headFt} ft outside ${req.headMinFt}-${req.headMaxFt} ft (${flowNote})`,
       });
     }
   }
 
+  // ---- collapse duplicate technical rows -------------------------------
+  // The catalogue sometimes has two motor_pump_variant rows for the same
+  // hydraulic point that differ only in an electrical attribute (starting
+  // method / cable size) which extraction didn't capture in a structured
+  // column. Left alone, that produces two visually-identical result rows
+  // for what a user would call one "technical combination" — each pointing
+  // at the same purchasable price options, doubled. Collapse rows that
+  // agree on every technical/hydraulic field into one, merging their price
+  // options together (spec: "multiple purchasable price options per
+  // technical combination are all shown" — one row, several options).
+  let duplicateTechnicalRowsMerged = 0;
+  function dedupeTechnical<T extends {
+    variantId: number; pumpModel: string | null; stageIdentity: string | null;
+    hp: number | null; phase: number | null; category: string | null;
+    flowM3h: number; headM: number;
+  }>(list: T[]): (T & { variantIds: number[] })[] {
+    const map = new Map<string, T & { variantIds: number[] }>();
+    for (const r of list) {
+      const key = `${r.pumpModel}|${r.stageIdentity}|${r.hp}|${r.phase}|${r.category}|${r.flowM3h}|${r.headM}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.variantIds.push(r.variantId);
+        duplicateTechnicalRowsMerged++;
+      } else {
+        map.set(key, { ...r, variantIds: [r.variantId] });
+      }
+    }
+    return [...map.values()];
+  }
+  const validDeduped = dedupeTechnical(valid);
+  const nearDeduped = dedupeTechnical(near);
+  const rejectedDeduped = dedupeTechnical(rejected);
+
   // ---- price attachment (after ranking is possible) ----
   const priceByVariant = attachPrices([...variantIds]);
-  for (const list of [valid, near]) {
+  for (const list of [validDeduped, nearDeduped]) {
     for (const r of list) {
-      const opts = priceByVariant.get(r.variantId) ?? [];
+      const seen = new Set<string>();
+      const opts: PriceOption[] = (r.variantIds as number[])
+        .flatMap((vid: number) => priceByVariant.get(vid) ?? [])
+        .filter((o: PriceOption) => (seen.has(o.inCode) ? false : (seen.add(o.inCode), true)))
+        .sort((a: PriceOption, b: PriceOption) => {
+          const al = a.landingPrice ?? Infinity, bl = b.landingPrice ?? Infinity;
+          return al !== bl ? al - bl : a.inCode.localeCompare(b.inCode);
+        });
       const landings = opts.map((o) => o.landingPrice).filter((x): x is number => x != null);
       r.priceOptions = opts;
       r.priceOptionCount = opts.length;
       r.lowestLandingPrice = landings.length ? Math.min(...landings) : null;
       r.priceStatus = opts.length === 0
         ? "NO_EXACT_PRICE_MATCH"
-        : (landings.length || opts.some((o) => o.singlePumpPrice != null || o.above50kPrice != null)
+        : (landings.length || opts.some((o: PriceOption) => o.singlePumpPrice != null || o.above50kPrice != null)
           ? "PRICED" : "PRICE_RECORD_FOUND_VALUE_UNAVAILABLE");
     }
   }
@@ -172,13 +227,13 @@ export function search(params: SearchParams) {
   // ---- ranking ----
   const rankKey = req.ranking === "flow" ? "normFlowDistance"
     : req.ranking === "head" ? "normHeadDistance" : "balancedScore";
-  valid.sort((a, b) => a[rankKey] - b[rankKey]);
-  near.sort((a, b) => a.balancedScore - b.balancedScore);
-  valid.forEach((r, i) => (r.rank = i + 1));
+  validDeduped.sort((a, b) => a[rankKey] - b[rankKey]);
+  nearDeduped.sort((a, b) => a.balancedScore - b.balancedScore);
+  validDeduped.forEach((r, i) => (r.rank = i + 1));
 
   // ---- model summaries (aggregate valid ops by variant) ----
   const modelMap = new Map<number, any>();
-  for (const r of valid) {
+  for (const r of validDeduped) {
     let m = modelMap.get(r.variantId);
     if (!m) {
       m = {
@@ -202,23 +257,24 @@ export function search(params: SearchParams) {
   const modelSummaries = [...modelMap.values()].sort((a, b) => a.bestScore - b.bestScore);
   modelSummaries.forEach((m, i) => (m.rank = i + 1));
 
-  const priced = valid.filter((r) => r.priceStatus === "PRICED");
-  const unpriced = valid.filter((r) => r.priceStatus !== "PRICED");
+  const priced = validDeduped.filter((r) => r.priceStatus === "PRICED");
+  const unpriced = validDeduped.filter((r) => r.priceStatus !== "PRICED");
 
   return {
     request: req,
     statistics: {
       approvedOperatingPointsScanned: rows.length,
-      validOperatingPoints: valid.length,
+      validOperatingPoints: validDeduped.length,
       uniqueTechnicalModels: modelSummaries.length,
-      nearMatches: near.length,
-      rejectedPoints: rejected.length,
+      nearMatches: nearDeduped.length,
+      rejectedPoints: rejectedDeduped.length,
+      duplicateTechnicalRowsMerged,
       pricedOperatingPoints: priced.length,
       unpricedOperatingPoints: unpriced.length,
     },
-    validResults: valid,
-    nearMatches: near,
-    rejectedResults: rejected.slice(0, 500),
+    validResults: validDeduped,
+    nearMatches: nearDeduped,
+    rejectedResults: rejectedDeduped.slice(0, 500),
     unpricedResults: unpriced,
     modelSummaries,
   };

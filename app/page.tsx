@@ -12,7 +12,7 @@ const SITE_WARNING =
   "Selection is based on catalogue performance and the entered ground-to-motor depth. Confirm actual site duty, pipe losses, borewell conditions and installation requirements before purchase or installation.";
 
 export default function Home() {
-  const [form, setForm] = useState({ flowMinLph: "30000", flowMaxLph: "40000", depthMinFt: "100", depthMaxFt: "200", nearTolerancePct: "5", ranking: "balanced" });
+  const [form, setForm] = useState({ flowMinLph: "30000", flowMaxLph: "40000", depthMinFt: "100", depthMaxFt: "200", hpMin: "", hpMax: "", nearTolerancePct: "5", ranking: "balanced" });
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,8 +43,8 @@ export default function Home() {
     } catch (e: any) { setError(String(e)); }
     setLoading(false);
   }
-  function sample() { setForm({ flowMinLph: "30000", flowMaxLph: "40000", depthMinFt: "100", depthMaxFt: "200", nearTolerancePct: "5", ranking: "balanced" }); }
-  function reset() { setForm({ flowMinLph: "", flowMaxLph: "", depthMinFt: "", depthMaxFt: "", nearTolerancePct: "5", ranking: "balanced" }); setData(null); setError(null); }
+  function sample() { setForm({ flowMinLph: "30000", flowMaxLph: "40000", depthMinFt: "100", depthMaxFt: "200", hpMin: "", hpMax: "", nearTolerancePct: "5", ranking: "balanced" }); }
+  function reset() { setForm({ flowMinLph: "", flowMaxLph: "", depthMinFt: "", depthMaxFt: "", hpMin: "", hpMax: "", nearTolerancePct: "5", ranking: "balanced" }); setData(null); setError(null); }
 
   function openSource(r: any, focus: "technical" | "price" | null = null) {
     const opt = (r.priceOptions || []).find((o: any) => o.landingPrice != null) || (r.priceOptions || [])[0];
@@ -92,11 +92,13 @@ export default function Home() {
       </header>
 
       <div className="card no-print" style={{ padding: 14, marginBottom: 14 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
           <Field label="Min flow (LPH)"><input className="input tnum" value={form.flowMinLph} onChange={(e) => set("flowMinLph", e.target.value)} inputMode="decimal" /></Field>
           <Field label="Max flow (LPH)"><input className="input tnum" value={form.flowMaxLph} onChange={(e) => set("flowMaxLph", e.target.value)} inputMode="decimal" /></Field>
           <Field label="Min depth (ft)"><input className="input tnum" value={form.depthMinFt} onChange={(e) => set("depthMinFt", e.target.value)} inputMode="decimal" /></Field>
           <Field label="Max depth (ft)"><input className="input tnum" value={form.depthMaxFt} onChange={(e) => set("depthMaxFt", e.target.value)} inputMode="decimal" /></Field>
+          <Field label="Min HP"><input className="input tnum" value={form.hpMin} onChange={(e) => set("hpMin", e.target.value)} inputMode="decimal" placeholder="any" /></Field>
+          <Field label="Max HP"><input className="input tnum" value={form.hpMax} onChange={(e) => set("hpMax", e.target.value)} inputMode="decimal" placeholder="any" /></Field>
           <Field label="Near tolerance %"><input className="input tnum" value={form.nearTolerancePct} onChange={(e) => set("nearTolerancePct", e.target.value)} inputMode="decimal" /></Field>
           <Field label="Ranking">
             <select className="input" value={form.ranking} onChange={(e) => set("ranking", e.target.value)}>
@@ -124,6 +126,7 @@ export default function Home() {
             <Stat label="Priced" v={num(s.pricedOperatingPoints)} />
             <Stat label="Unpriced" v={num(s.unpricedOperatingPoints)} />
             <Stat label="Near" v={num(s.nearMatches)} />
+            {s.duplicateTechnicalRowsMerged > 0 && <Stat label="Duplicates merged" v={num(s.duplicateTechnicalRowsMerged)} />}
           </div>
 
           <div className="badge badge-warn" style={{ display: "block", marginBottom: 10, lineHeight: 1.5, whiteSpace: "normal" }}>⚠︎ {SITE_WARNING}</div>
