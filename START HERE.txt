@@ -1,0 +1,259 @@
+===============================================================
+  KSB PUMP SELECTOR  -  Setup on the Windows laptop
+===============================================================
+
+Read this once, top to bottom. It takes about 10 minutes the
+first time. After that, using the app is a single double-click.
+
+
+---------------------------------------------------------------
+  WHAT THIS IS
+---------------------------------------------------------------
+
+A pump selection tool. You type in the water flow you need and
+how deep the motor sits, and it lists every KSB pump that fits,
+with prices from the price booklet.
+
+It runs entirely on this laptop. It does not need the internet
+once it is set up, and nothing is ever uploaded anywhere.
+
+
+---------------------------------------------------------------
+  BEFORE YOU START
+---------------------------------------------------------------
+
+You need:
+
+  * This folder, unzipped onto the laptop
+  * An internet connection FOR THE FIRST RUN ONLY
+  * About 10 minutes
+
+You do NOT need to install Python, Visual Studio Code, or any
+programming tools. Only Node.js, in Step 2 below.
+
+
+---------------------------------------------------------------
+  STEP 1  -  Unzip this folder onto the laptop
+---------------------------------------------------------------
+
+If you are reading this from inside the ZIP file, stop and
+unzip it first. The app will not run from inside a ZIP.
+
+  1. Right-click  KSB-Pump-Selector.zip
+  2. Choose  "Extract All..."
+  3. Click  "Extract"
+  4. Move the extracted  KSB-for-dad  folder to the Desktop
+
+You should now have a folder on the Desktop containing
+"Start KSB Pump Selector" and this file.
+
+
+---------------------------------------------------------------
+  STEP 2  -  Install Node.js  (one time only)
+---------------------------------------------------------------
+
+Node.js is the engine the app runs on. It is free and made by
+the Node.js Foundation.
+
+  1. Open a browser and go to:
+
+         https://nodejs.org
+
+  2. Click the big green button that says  "LTS".
+     LTS means "Long Term Support" - the stable version.
+
+  3. Open the file it downloads
+     (usually in your Downloads folder, named something like
+     node-v22.x.x-x64.msi)
+
+  4. Click  Next  ->  accept the licence  ->  Next  ->  Next
+     ->  Install  ->  Finish
+
+     Leave every option at its default. Do not change anything.
+
+  5. That is all. You do not need to open Node.js. It just
+     needs to be installed.
+
+If you skip this step, the app will notice and offer to open
+the download page for you.
+
+
+---------------------------------------------------------------
+  STEP 3  -  Start the app for the first time
+---------------------------------------------------------------
+
+  1. Open the  KSB-for-dad  folder
+
+  2. Double-click:
+
+         Start KSB Pump Selector
+
+     (Windows may show it as "Start KSB Pump Selector.bat")
+
+  3. A black window opens with white text. THIS IS NORMAL.
+     Do not close it.
+
+     It will say:
+
+         First-time setup.
+         This needs the internet and takes a few minutes.
+
+  4. WAIT. This takes 2 to 5 minutes depending on your
+     internet speed. Lots of text will scroll past. That is
+     normal - it is downloading the parts it needs.
+
+     If Windows Firewall asks for permission, click
+     "Allow access".
+
+  5. When it is ready, your web browser opens by itself
+     showing the KSB Pump Selector.
+
+     A new icon also appears on your Desktop:
+
+         KSB Pump Selector
+
+That is the setup done. You never have to do Steps 1-3 again.
+
+
+---------------------------------------------------------------
+  USING IT EVERY DAY AFTER THAT
+---------------------------------------------------------------
+
+  1. Double-click the  KSB Pump Selector  icon on the Desktop
+
+  2. The black window opens, then your browser opens the app
+     a few seconds later
+
+  3. Use the app in the browser
+
+  4. When you are finished for the day, close the black window
+
+No internet is needed for daily use.
+
+Leave the black window alone while you work. It is what runs
+the app. If you close it, the app stops.
+
+
+---------------------------------------------------------------
+  HOW TO USE THE APP ITSELF
+---------------------------------------------------------------
+
+Fill in the boxes at the top:
+
+  Min flow / Max flow (LPH)
+      The range of water output you need, in litres per hour.
+
+  Min depth / Max depth (ft)
+      How deep the motor will sit in the borewell, in feet.
+
+  Min HP / Max HP        (optional - leave blank for all)
+      If you only want, say, 5 to 10 HP motors, type 5 and 10.
+      Leave both blank to see every horsepower.
+
+  Near tolerance %
+      How close is "close enough" for the Near matches tab.
+      5 is a sensible default.
+
+  Ranking
+      Which results come first: balanced, closest flow, or
+      closest depth.
+
+Then click  "Find all combinations".
+
+The tabs across the middle:
+
+  Valid combinations  - pumps that fully meet what you asked
+  Model summary       - the same results grouped by pump model
+  Near matches        - just outside your range, worth a look
+  Rejected            - considered and ruled out, with reasons
+  Unpriced            - technically valid, no price on file
+
+Click the small arrow at the left of any row to expand it and
+see the price options and full specification.
+
+Export CSV / Export JSON / Print saves or prints the results.
+
+IMPORTANT: every result carries a warning to confirm actual
+site conditions before purchase. The app matches catalogue
+figures only - it does not account for pipe losses or site
+specifics.
+
+
+---------------------------------------------------------------
+  IF SOMETHING GOES WRONG
+---------------------------------------------------------------
+
+"The browser did not open by itself"
+
+      Open your browser and type this into the address bar:
+
+          http://localhost:3000
+
+      (localhost means "this computer" - it is not a website)
+
+
+"I closed the black window by mistake"
+
+      Just double-click the KSB icon again.
+
+
+"I double-clicked twice and got two black windows"
+
+      Harmless. The second one just reopens the browser and
+      closes itself.
+
+
+"It says Node.js needs to be installed"
+
+      Go back to Step 2. Press any key and it will open the
+      download page for you.
+
+
+"It says the pump and price database is missing"
+
+      The folder was copied incompletely - the file
+      data\ksb.sqlite did not come across.
+      Ask Satya to send the whole folder again.
+
+
+"It says setup could not finish"
+
+      Almost always no internet on the first run.
+      Connect to the internet and double-click the icon again.
+
+
+"Something else / an error I don't understand"
+
+      Take a photo of the black window and send it to Satya.
+      Do not try to fix it by editing files.
+
+
+---------------------------------------------------------------
+  CONFIDENTIALITY  -  PLEASE READ
+---------------------------------------------------------------
+
+This folder contains the confidential KSB price list.
+
+  * Keep it on this laptop only
+  * Do NOT email it
+  * Do NOT put it on Google Drive, OneDrive, Dropbox or
+    WhatsApp
+  * Transfer it only by USB drive
+
+The app is deliberately locked to this computer. Nobody else
+on the same Wi-Fi can open it, even if they know the address.
+It is not published to the network in any way.
+
+
+---------------------------------------------------------------
+  WHAT NOT TO DO
+---------------------------------------------------------------
+
+  * Do not rename or move files inside the folder
+  * Do not delete the folder after setup - the Desktop icon
+    points into it
+  * Do not open the files in Notepad and edit them
+  * Do not close the black window while you are still using
+    the app in the browser
+
+===============================================================

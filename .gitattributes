@@ -3,6 +3,7 @@
 # LF-only text as a single unreadable line.
 *.bat           text eol=crlf
 WINDOWS_SETUP.txt text eol=crlf
+START HERE.txt  text eol=crlf
 
 # Shell scripts must stay LF even if checked out on Windows.
 *.sh            text eol=lf
