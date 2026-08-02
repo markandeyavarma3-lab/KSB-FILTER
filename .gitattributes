@@ -1,0 +1,8 @@
+# Files handed to the Windows laptop must keep CRLF endings:
+# a LF-only .bat can misbehave around goto labels, and Notepad renders
+# LF-only text as a single unreadable line.
+*.bat           text eol=crlf
+WINDOWS_SETUP.txt text eol=crlf
+
+# Shell scripts must stay LF even if checked out on Windows.
+*.sh            text eol=lf

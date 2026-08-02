@@ -175,15 +175,54 @@ count transparent (e.g., "Duplicates merged: 7").
 
 ## Running on Windows (non-technical user)
 
-`Start KSB Pump Selector.bat` is a double-click launcher for handing the app to an
-end user. It installs deps and builds on first run, then opens
-`http://localhost:3000` in the default browser. See `WINDOWS_SETUP.txt` for the
-plain-language instructions that ship alongside it.
+`Start KSB Pump Selector.bat` is a double-click launcher. On first run it installs
+dependencies, builds, drops a **KSB Pump Selector** shortcut on the Desktop, and
+opens the browser — after that it is one click from the Desktop icon.
+`WINDOWS_SETUP.txt` ships alongside it with plain-language instructions.
 
-Python is **not** needed on that machine — only Node.js. Copy the built
-`data/ksb.sqlite` and `source_pdfs/` across with the folder and the extraction step
-can be skipped entirely. Note that doing so moves the confidential price list onto
-that machine; transfer by USB rather than a cloud link.
+Python is **not** needed on that machine — only Node.js.
+
+### Preparing the handoff — use `./prepare-for-windows.sh`
+
+```bash
+./prepare-for-windows.sh              # → ~/Desktop/KSB-for-dad
+./prepare-for-windows.sh /some/path   # or an explicit destination
+```
+
+**Do not copy `node_modules/` or `.next/` to the Windows machine.**
+`better-sqlite3` is a native module compiled for the machine that installed it
+(here: Mach-O arm64). Copied to Windows it fails to load, and because the old
+launcher only ran `npm install` when `node_modules` was *absent*, the install was
+skipped and the app died on an error no end user could diagnose. The script
+excludes both directories, which also drops the transfer from ~450 MB to ~14 MB.
+
+The launcher additionally **self-heals** this case: it probes the native module by
+opening an in-memory database, and if that fails it deletes `node_modules/` and
+`.next/` and reinstalls. (Probing with a bare `require()` is not enough — the
+module resolves fine and only throws when the binding is actually used.)
+
+`data/ksb.sqlite` and `source_pdfs/` are git-ignored but **are required**; the
+script copies them and warns if either is missing. That moves the confidential
+price list onto that machine — transfer by USB, never a cloud link.
+
+### Launcher behaviour
+
+| Situation | What the user sees |
+|---|---|
+| Node.js not installed | Plain instructions, then opens nodejs.org |
+| `data/ksb.sqlite` missing | "Ask Satya to send the complete folder again" |
+| `node_modules` from another machine | Silently rebuilt for this machine |
+| Already running (double-clicked twice) | Reopens the browser instead of an `EADDRINUSE` stack trace |
+| Normal run | Browser opens **once the server is actually listening** |
+
+That last row was a real defect in the previous launcher: it called
+`start "" http://localhost:3000` *before* `npm start`, so the browser reliably
+raced the server and showed "can't reach this site" on a cold start. A background
+poller now waits for port 3000 to accept a connection before opening the browser.
+
+`.bat` and `WINDOWS_SETUP.txt` are stored CRLF (enforced by `.gitattributes`) —
+LF-only batch files can misbehave around `goto` labels, and Notepad renders
+LF-only text as one unreadable line.
 
 ## Status
 

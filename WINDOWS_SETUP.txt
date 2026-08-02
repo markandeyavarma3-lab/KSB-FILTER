@@ -1,33 +1,66 @@
-KSB Pump Selector - Setup on Windows
-=====================================
+KSB Pump Selector - Setup on the Windows laptop
+===============================================
 
-ONE-TIME SETUP
---------------
-1. Install Node.js (needed to run the app):
-   https://nodejs.org
-   Click the button labeled "LTS" and run the installer with default options.
 
-2. Copy this whole folder onto the Windows laptop
-   (USB drive is simplest). Keep all the files and folders together -
-   don't pick out individual files.
+WHAT YOU NEED TO DO ONCE
+------------------------
 
-3. Double-click "Start KSB Pump Selector.bat"
-   The first run installs some files and may take a few minutes and
-   needs an internet connection. After that it works fully offline.
+1. Install Node.js
+   Go to  https://nodejs.org  and click the big green "LTS" button.
+   Run the file it downloads, clicking Next / OK until it finishes.
 
-   If Windows Defender/Firewall asks for permission, click "Allow access".
+   (If you skip this, the KSB app will tell you and offer to open the
+   page for you.)
 
-EVERY TIME AFTER THAT
-----------------------
-Just double-click "Start KSB Pump Selector.bat" again.
-It opens automatically in your browser at http://localhost:3000
-Close the black window when you're done to stop the app.
+2. Copy the KSB folder from the USB drive onto the laptop.
+   Putting it on the Desktop is easiest.
 
-NOTES
------
-- All data (pump specs and prices) stays on this laptop. Nothing is
-  uploaded anywhere.
-- If the browser doesn't open by itself, open it manually and go to:
-  http://localhost:3000
-- This folder contains the confidential KSB price list. Treat the
-  whole folder the same way you'd treat that PDF.
+3. Open the folder and double-click:
+       Start KSB Pump Selector
+
+   The first time only, it sets itself up. This needs the internet and
+   takes a few minutes. Leave the window open while it works.
+
+   If Windows asks about the firewall, click "Allow access".
+
+   When it finishes, your browser opens the app by itself, and a
+   "KSB Pump Selector" icon appears on your Desktop.
+
+
+EVERY DAY AFTER THAT
+--------------------
+
+Double-click the  KSB Pump Selector  icon on the Desktop.
+
+Your browser opens the app on its own. No internet needed.
+
+A small black window opens too. Leave it alone while you work -
+it is what runs the app. Close it when you are finished for the day.
+
+
+IF SOMETHING LOOKS WRONG
+------------------------
+
+The browser did not open by itself
+    Open your browser and type this in the address bar:
+        http://localhost:3000
+
+You closed the black window by mistake
+    Just double-click the KSB icon again.
+
+You double-clicked twice and got two windows
+    That is fine. The second one just reopens the browser.
+
+Anything else
+    Take a photo of the window and send it to Satya.
+
+
+IMPORTANT
+---------
+
+This folder contains the confidential KSB price list.
+Treat it the same way you would treat that PDF - keep it on this
+laptop only, and do not email it or put it on a cloud drive.
+
+The app runs entirely on this laptop. Nothing is uploaded anywhere,
+and nobody else on the Wi-Fi can see it.
